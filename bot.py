@@ -48,10 +48,16 @@ async def on_server_join(server):
 async def on_server_remove(server):
     print(f"I left the server {server.name} with the ID {server.id}")
 
-@bot.command(hidden = True)
+@bot.command(hidden=True)
 async def invite():
     await bot.say(f"https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot&permissions=8")
 
+@bot.command(hidden=True)
+async def version():
+    """Gives back the bot version"""
+    await bot.say(bot_version)
+
+#Utility Commands
 @checks.is_owner()
 @bot.command(pass_context=True, hidden=True, aliases=['stop'])
 async def shutdown(ctx):
@@ -70,7 +76,7 @@ async def shutdown(ctx):
 @bot.command(pass_context=True, hidden=True)
 async def update(ctx):
     """Updates the bot with the newest Version from GitHub
-        Only works for the bot owner account"""
+        Only works for the bot owner"""
     await bot.say("Ok, I am updating from GitHub")
     try:
         output = subprocess.run(["git", "pull"], stdout=subprocess.PIPE)
@@ -94,6 +100,12 @@ async def restart(ctx):
         os.execl(sys.executable, sys.executable, *sys.argv)
     except:
         pass
+
+@checks.is_owner()
+@bot.command(hidden=True, aliases=['setgame', 'setplaying'])
+async def gametitle(*, message: str):
+    """Sets the currently playing status of the bot"""
+    await bot.change_presence(game=discord.Game(name=message))
 
 try:
     bot.run(loginID)
