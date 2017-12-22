@@ -19,6 +19,7 @@ logging.basicConfig(level=logging.INFO)
 config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
+loginID = login.get('Login Token')
 bot_version = "0.0.1"
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
@@ -77,3 +78,12 @@ async def update(ctx):
         await bot.send_message(ctx.message.channel, embed=embed)
     except:
         await bot.say("That didn't work for some reason")
+
+
+
+try:
+    bot.run(loginID)
+except:
+    raise ValueError(
+        "Couldn't log in with the given credentials, please check those in config.ini"
+        " and your connection and try again!")
