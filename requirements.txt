@@ -1,0 +1,5 @@
+discord.py[voice]>=0.16.6
+requests
+pyrandom
+google-api-python-client
+peewee
