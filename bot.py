@@ -53,9 +53,10 @@ async def invite():
     await bot.say(f"https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot&permissions=8")
 
 @checks.is_owner()
-@bot.command(pass_context=True, hidden=True)
+@bot.command(pass_context=True, hidden=True, aliases=['stop'])
 async def shutdown(ctx):
-    """Shuts the bot down"""
+    """Shuts the bot down
+    Only works for the bot owner"""
     await bot.say("Shutting down!", delete_after=3)
     await asyncio.sleep(5)
     print(f"Shutting down on request of {ctx.message.author.name}!")
@@ -80,7 +81,19 @@ async def update(ctx):
     except:
         await bot.say("That didn't work for some reason")
 
-
+@checks.is_owner()
+@bot.command(pass_context=True, hidden=True, aliases=['reboot'])
+async def restart(ctx):
+    """Restart the bot
+    Only works for the bot owner"""
+    await bot.say("Restarting", delete_after=3)
+    await asyncio.sleep(5)
+    print(f"Restarting on request of {ctx.message.author.name}!")
+    await bot.close()
+    try:
+        os.execl(sys.executable, sys.executable, *sys.argv)
+    except:
+        pass
 
 try:
     bot.run(loginID)
