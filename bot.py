@@ -21,7 +21,7 @@ login = config['Login']
 settings = config['Settings']
 bot_version = "0.0.1"
 
-bot = commands.Bot(command_prefix=settings.get('prefix', '!'),
+bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
 
 @bot.event
