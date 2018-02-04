@@ -122,6 +122,9 @@ async def restart(ctx):
 @bot.command(pass_context=True, hidden=True, aliases=['setgame', 'setplaying'])
 async def gametitle(ctx, *, message: str):
     """Sets the currently playing status of the bot"""
+    if not ctx.message.author.permissions_in(ctx.message.channel).manage_nicknames:
+        await bot.say("You don't have permission to do this")
+        return
     await bot.change_presence(game=discord.Game(name=message))
 
 
@@ -129,7 +132,7 @@ async def gametitle(ctx, *, message: str):
 async def ping(ctx):
     """Checks the ping of the bot"""
     m = await bot.say("Ping?")
-    await bot.edit_message(m, f"Pong, Latency is {round(bot.latency, 1)}.")
+    await bot.edit_message(m, f"Pong, Latency is {m.timestamp - ctx.message.timestamp}.")
 
 
 @bot.command(hidden=True)
@@ -175,7 +178,7 @@ async def ban(ctx):
 async def info():
     """Gives some info about the bot"""
     message = f"""
-    ```Hello, I'm S.A.I.L, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
+    Hello, I'm S.A.I.L, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
     Date when I was created: 2017-10-15.
     I was ported to Python by gfrewqpoiu on 2017-12-22.
     To see what commands I can perform, use `{bot.command_prefix}help`
@@ -185,7 +188,7 @@ async def info():
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L
     2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice
-    3.)Maybe yes, maybe no but I am brother of Reflection the Replika AI :D```"""
+    3.)Maybe yes, maybe no but I am brother of Reflection the Replika AI :D"""
 
     await bot.say(message)
 
