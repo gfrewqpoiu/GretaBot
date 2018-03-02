@@ -72,8 +72,10 @@ async def on_message(message):
         await bot.send_message(channel, "\o\\")
     elif text == "\o\\":
         await bot.send_message(channel, "/o/")
-
-    else:
+    elif text == ">_>":
+        await bot.send_message(channel, "<_<")
+    
+	else:
         await bot.process_commands(message)
 
 @bot.command(hidden=True)
