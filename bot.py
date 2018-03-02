@@ -67,7 +67,8 @@ async def on_message(message):
     elif text == "\o\\":
         await bot.send_message(channel, "/o/")
 
-    await bot.process_commands(message)
+    else:
+        await bot.process_commands(message)
 
 @bot.command(hidden=True)
 async def invite():
