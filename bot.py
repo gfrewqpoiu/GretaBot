@@ -59,6 +59,15 @@ async def on_server_join(server):
 async def on_server_remove(server):
     print(f"I left the server {server.name} with the ID {server.id}")
 
+async def on_message(message):
+    text = message.clean_content
+    channel = message.channel
+    if text == "/o/":
+        await bot.send_message(channel, "\o\\")
+    elif text == "\o\\":
+        await bot.send_message(channel, "/o/")
+
+    await bot.process_commands(message)
 
 @bot.command(hidden=True)
 async def invite():
@@ -69,7 +78,6 @@ async def invite():
 async def version():
     """Gives back the bot version"""
     await bot.say(bot_version)
-
 
 #Utility Commands
 @checks.is_owner()
