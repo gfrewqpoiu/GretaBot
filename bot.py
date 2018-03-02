@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
-import pprint.pprint as pprint
+import pprint
 def _restart():
     try:
         os.execl(sys.executable, sys.executable, *sys.argv)
@@ -64,7 +64,7 @@ async def on_message(message):
     if message.author.id == bot.id:
         return
 
-    pprint(message)
+    pprint.pprint(message)
     text = message.content
     channel = message.channel
     if text == "/o/":
