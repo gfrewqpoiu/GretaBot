@@ -62,7 +62,7 @@ async def on_server_remove(server):
 
 @bot.event
 async def on_message(message):
-    if message.author.id == bot.id:
+    if message.author == bot.user:
         return
 
     pprint.pprint(message)
