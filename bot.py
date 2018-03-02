@@ -65,9 +65,9 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    pprint.pprint(message)
-    text = message.content
+    text = message.clean_content
     channel = message.channel
+
     if text == "/o/":
         await bot.send_message(channel, "\o\\")
     elif text == "\o\\":
@@ -217,6 +217,11 @@ async def purge(ctx, amount: int):
     except discord.Forbidden:
         await bot.say("I couldn't do that because of missing permissions")
 
+
+@bot.command(hidden=True)
+async def tf2():
+    """Funny Video"""
+    await bot.say("https://www.youtube.com/watch?v=r-u4rA_yZTA")
 
 try:
     bot.run(loginID)
