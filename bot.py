@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import os
+import pprint.pprint as pprint
 def _restart():
     try:
         os.execl(sys.executable, sys.executable, *sys.argv)
@@ -27,7 +28,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.0.2"
+bot_version = "0.0.3"
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
@@ -60,6 +61,7 @@ async def on_server_remove(server):
     print(f"I left the server {server.name} with the ID {server.id}")
 
 async def on_message(message):
+    pprint(message)
     text = message.content
     channel = message.channel
     if text == "/o/":
