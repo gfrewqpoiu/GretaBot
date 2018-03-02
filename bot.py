@@ -222,7 +222,7 @@ async def purge(ctx, amount: int):
         await bot.say("I couldn't do that because of missing permissions")
 
 
-@bot.command(hidden=True)
+@bot.command(hidden=False)
 async def tf2():
     """Funny Video"""
     await bot.say("https://www.youtube.com/watch?v=r-u4rA_yZTA")
