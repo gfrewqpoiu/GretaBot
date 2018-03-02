@@ -60,7 +60,7 @@ async def on_server_remove(server):
     print(f"I left the server {server.name} with the ID {server.id}")
 
 async def on_message(message):
-    text = message.clean_content
+    text = message.content
     channel = message.channel
     if text == "/o/":
         await bot.send_message(channel, "\o\\")
