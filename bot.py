@@ -106,7 +106,7 @@ async def shutdown(ctx):
         {}
 
 
-@checks.is_owner()
+@checks.is_admin()
 @bot.command(pass_context=True, hidden=True)
 async def update(ctx):
     """Updates the bot with the newest Version from GitHub
@@ -120,7 +120,6 @@ async def update(ctx):
         embed.set_author(name="Output:")
         embed.set_footer(text=output.stdout.decode('utf-8'))
         await bot.send_message(ctx.message.channel, embed=embed)
-        await bot.command(restart(ctx))
     except:
         await bot.say("That didn't work for some reason")
 
