@@ -52,14 +52,15 @@ async def on_ready():
     print('------')
     await bot.change_presence(game=discord.Game(name='my game'))
 
-
+@bot.event
 async def on_server_join(server):
     print(f"I just joined the server {server.name} with the ID {server.id}")
 
-
+@bot.event
 async def on_server_remove(server):
     print(f"I left the server {server.name} with the ID {server.id}")
 
+@bot.event
 async def on_message(message):
     if message.author.id == bot.id:
         return
