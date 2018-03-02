@@ -61,6 +61,9 @@ async def on_server_remove(server):
     print(f"I left the server {server.name} with the ID {server.id}")
 
 async def on_message(message):
+    if message.author.id == bot.id:
+        return
+
     pprint(message)
     text = message.content
     channel = message.channel
