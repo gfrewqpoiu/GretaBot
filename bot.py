@@ -197,8 +197,7 @@ async def ban(ctx):
 @bot.command()
 async def info():
     """Gives some info about the bot"""
-    message = f"""
-    
+    message = f"""📢
     Hello, I'm S.A.I.L, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
     Date when I was created: 2017-10-15.
     I was ported to Python by gfrewqpoiu on 2017-12-22.
