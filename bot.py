@@ -238,7 +238,7 @@ async def an():
 async def changes():
     """A command to show what has been added and/or removed from bot"""
     await bot.say("""The changes:
-    0.1.1 -> ADDED: tf2 & an - link commands; extra reactions.""")
+    0.1.1 -> **ADDED:** tf2 & an - link commands; extra reactions.""")
 
 try:
     bot.run(loginID)
