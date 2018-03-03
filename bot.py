@@ -80,7 +80,9 @@ async def on_message(message):
         await bot.send_message(channel, "I am sorry that you are annoyed. I want you to be happy!")
     elif text == "-.-":
         await bot.send_message(channel, "Aww don't be so upsetti, have some spaghetti!")
-
+    elif text == "@419582588336996353"
+        await bot.send_message(channel, "May I help you with anything?")
+        
     else:
         await bot.process_commands(message)
 
@@ -248,8 +250,7 @@ async def changes():
 async def quotes():
     """Random stupid quotes"""
     await bot.say("""'robots making love-->dubstep' Alexy 2018
-    *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°) *""")
-    
+    *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
 try:
     bot.run(loginID)
 except:
