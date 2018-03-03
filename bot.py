@@ -233,7 +233,12 @@ async def tf2():
 async def an():
     """A command giving link to A->N website"""
     await bot.say("http://approachingnirvana.com/")
-    
+
+@bot.command(hidden=False)
+async def changes():
+    """A command to show what has been added and/or removed from bot"""
+    await bot.say(ADDED: tf2 & an - link commands; extra reactions.)
+
 try:
     bot.run(loginID)
 except:
