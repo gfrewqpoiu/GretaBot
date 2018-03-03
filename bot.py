@@ -28,7 +28,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.1.0"
+bot_version = "0.1.1"
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
@@ -50,7 +50,7 @@ async def on_ready():
         amount += 1
     print(f"I am in {amount} channels")
     print('------')
-    await bot.change_presence(game=discord.Game(name='my game'))
+    await bot.change_presence(game=discord.Game(name='waiting'))
 
 @bot.event
 async def on_server_join(server):
@@ -237,7 +237,8 @@ async def an():
 @bot.command(hidden=False)
 async def changes():
     """A command to show what has been added and/or removed from bot"""
-    await bot.say("ADDED: tf2 & an - link commands; extra reactions.")
+    await bot.say(""""The changes:
+    0.1.1 -> ADDED: tf2 & an - link commands; extra reactions.""")
 
 try:
     bot.run(loginID)
