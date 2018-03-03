@@ -199,11 +199,11 @@ async def info():
     """Gives some info about the bot"""
     message = f"""📢
     Hello, I'm S.A.I.L, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
-    Date when I was created: 2017-10-15.
-    I was ported to Python by gfrewqpoiu on 2017-12-22.
-    To see what commands I can perform, use `{bot.command_prefix}help`
-    My version currently is: {bot_version}
-    I was made in Lithuania, Biržai and Klaipėda, as well as Munich, Germany.
+    *~Date when I was created: 2017-10-15.
+    *~I was ported to Python by gfrewqpoiu on 2017-12-22.
+    *~To see what commands I can perform, use `{bot.command_prefix}help`
+    *~My version currently is: {bot_version}
+    *~I was made in Lithuania, Biržai and Klaipėda, as well as Munich, Germany.
     
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L
