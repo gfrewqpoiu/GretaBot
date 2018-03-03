@@ -237,7 +237,7 @@ async def an():
 @bot.command(hidden=False)
 async def changes():
     """A command to show what has been added and/or removed from bot"""
-    await bot.say(ADDED: tf2 & an - link commands; extra reactions.)
+    await bot.say("ADDED: tf2 & an - link commands; extra reactions.")
 
 try:
     bot.run(loginID)
