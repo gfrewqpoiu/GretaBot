@@ -224,17 +224,17 @@ async def purge(ctx, amount: int):
         await bot.say("I couldn't do that because of missing permissions")
 
 
-@bot.command(hidden=False)
+@bot.command()
 async def tf2():
     """Funny Video"""
     await bot.say("https://www.youtube.com/watch?v=r-u4rA_yZTA")
 
-@bot.command(hidden=False)
+@bot.command()
 async def an():
     """A command giving link to A->N website"""
     await bot.say("http://approachingnirvana.com/")
 
-@bot.command(hidden=False)
+@bot.command()
 async def changes():
     """A command to show what has been added and/or removed from bot"""
     await bot.say("""The changes:
