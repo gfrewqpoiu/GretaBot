@@ -80,7 +80,9 @@ async def on_message(message):
         await bot.send_message(channel, "I am sorry that you are annoyed. I want you to be happy!")
     elif text == "-.-":
         await bot.send_message(channel, "Aww don't be so upsetti, have some spaghetti!")
-
+    elif bot.user.mentioned_in(message):
+        await bot.send_message(channel, f"May I help you with anything {message.author.mention}?")
+        
     else:
         await bot.process_commands(message)
 
@@ -209,7 +211,8 @@ async def info():
     
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L
-    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice"""
+    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice
+    *NOTE: THIS IS BETA VERSION OF S.A.I.L*"""
 
     await bot.say(message)
 
@@ -238,8 +241,17 @@ async def an():
 async def changes():
     """A command to show what has been added and/or removed from bot"""
     await bot.say("""The changes:
-    0.1.1 -> **ADDED:** tf2 & an - link commands; extra reactions.""")
+    0.1.1 -> **ADDED:** 
+    *~tf2 & an - link commands; 
+    *~extra reactions;
+    *~change - updates command showing what was added/removed from bot
+    *~Special reaction w/ user tag""")
 
+@bot.command()
+async def quotes():
+    """Random stupid quotes"""
+    await bot.say("""'robots making love-->dubstep' Alexy 2018
+    *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
 try:
     bot.run(loginID)
 except:
