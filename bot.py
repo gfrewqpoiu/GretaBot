@@ -28,7 +28,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.1.1"
+bot_version = "0.2.0"
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
