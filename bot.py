@@ -243,6 +243,12 @@ async def changes():
     *~tf2 & an - link commands; 
     *~extra reactions;
     *~change - updates command showing what was added/removed from bot""")
+
+@bot.command()
+async def quotes():
+    """Random stupid quotes"""
+    await bot.say("""'robots making love-->dubstep' Alexy 2018
+    *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°) *""")
     
 try:
     bot.run(loginID)
