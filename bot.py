@@ -80,7 +80,7 @@ async def on_message(message):
         await bot.send_message(channel, "I am sorry that you are annoyed. I want you to be happy!")
     elif text == "-.-":
         await bot.send_message(channel, "Aww don't be so upsetti, have some spaghetti!")
-    elif text == "@I.P.S.A.I.L#1636":
+    elif text == "test sentence":
         await bot.send_message(channel, "May I help you with anything?")
         
     else:
