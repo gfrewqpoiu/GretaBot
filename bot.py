@@ -244,7 +244,8 @@ async def changes():
     0.1.1 -> **ADDED:** 
     *~tf2 & an - link commands; 
     *~extra reactions;
-    *~change - updates command showing what was added/removed from bot""")
+    *~change - updates command showing what was added/removed from bot
+    *~Special reaction w/ user tag""")
 
 @bot.command()
 async def quotes():
