@@ -80,7 +80,7 @@ async def on_message(message):
         await bot.send_message(channel, "I am sorry that you are annoyed. I want you to be happy!")
     elif text == "-.-":
         await bot.send_message(channel, "Aww don't be so upsetti, have some spaghetti!")
-        
+
     else:
         await bot.process_commands(message)
 
@@ -229,6 +229,11 @@ async def tf2():
     """Funny Video"""
     await bot.say("https://www.youtube.com/watch?v=r-u4rA_yZTA")
 
+@bot.command(hidden=False)
+async def an():
+    """A command giving link to A->N website"""
+    await bot.say("http://approachingnirvana.com/")
+    
 try:
     bot.run(loginID)
 except:
