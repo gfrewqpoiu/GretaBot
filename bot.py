@@ -28,7 +28,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.2.0"
+bot_version = "0.3.0"
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
@@ -243,6 +243,7 @@ async def an():
 async def changes():
     """A command to show what has been added and/or removed from bot"""
     await bot.say("""The changes:
+    0.3.0 -> **FIXED:** Broken permissions work now
     0.2.0 -> **ADDED:** 
     *~tf2 & an - link commands; 
     *~extra reactions;
