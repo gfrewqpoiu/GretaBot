@@ -81,10 +81,31 @@ async def on_message(message):
     elif text == "-.-":
         await bot.send_message(channel, "Aww don't be so upsetti, have some spaghetti!")
     elif bot.user.mentioned_in(message):
-        await bot.send_message(channel, f"May I help you with anything {message.author.mention}?")
-        
+        await bot.send_message(channel, f"Ping? REEEEEEE I hate you, {message.author.mention}!")
+    elif bot.user.mentioned_in(message):
+        await bot.send_message(channel, f"Nuh, don't ping me, {message.author.mention}!")
+
     else:
         await bot.process_commands(message)
+
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+
+    text = message.clean_content
+    channel = message.channel
+
+    if bot.user.mentioned_in(message):
+        await bot.send_message(channel, f"Good day sir/lady, may I help you with anything, {message.author.mention}? Reply with Yes/No, please.")
+        if text == "Yes":
+            await bot.send_message(channel, "Please, use .help to review what commands I can perform.") 
+        if text == "No":
+            await bot.send_message(channel, "Oh well, then have a nice day sir/lady.")
+
+    else:
+        await bot.process_commands(message) 
+
 
 @bot.command(hidden=True)
 async def invite():
@@ -243,18 +264,19 @@ async def an():
 async def changes():
     """A command to show what has been added and/or removed from bot"""
     await bot.say("""The changes:
-    0.3.0 -> **FIXED:** Broken permissions work now
+    0.3.0 -> **FIXED:** Broken permissions work now.
     0.2.0 -> **ADDED:** 
     *~tf2 & an - link commands; 
     *~extra reactions;
-    *~change - updates command showing what was added/removed from bot
-    *~Special reaction w/ user tag""")
+    *~change - updates command showing what was added/removed from bot;
+    *~Special reaction w/ user tag;""")
 
 @bot.command()
 async def quotes():
     """Random stupid quotes"""
     await bot.say("""'robots making love-->dubstep' Alexy 2018
     *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
+
 try:
     bot.run(loginID)
 except:
