@@ -112,8 +112,9 @@ async def shutdown(ctx):
         {}
 
 
-@checks.is_admin()
+
 @bot.command(pass_context=True, hidden=True)
+@commands.has_permissions(administrator=True)
 async def update(ctx):
     """Updates the bot with the newest Version from GitHub
         Only works for the bot owner"""
@@ -130,8 +131,9 @@ async def update(ctx):
         await bot.say("That didn't work for some reason")
 
 
-@checks.is_admin()
+
 @bot.command(pass_context=True, hidden=True, aliases=['reboot'])
+@commands.has_permissions(administrator=True)
 async def restart(ctx):
     """Restart the bot
     Only works for the bot owner"""
@@ -142,8 +144,8 @@ async def restart(ctx):
     _restart()
 
 
-@checks.is_admin()
 @bot.command(pass_context=True, hidden=True, aliases=['setgame', 'setplaying'])
+@commands.has_permissions(administrator=True)
 async def gametitle(ctx, *, message: str):
     """Sets the currently playing status of the bot"""
     if not ctx.message.author.permissions_in(ctx.message.channel).manage_nicknames:
@@ -165,8 +167,8 @@ async def say(*, message:str):
     await bot.say(message)
 
 
-@checks.is_mod()
 @bot.command(pass_context=True)
+@commands.has_permissions(kick_members=True)
 async def kick(ctx):
     """Kicks the specified User"""
     if not ctx.message.author.permissions_in(ctx.message.channel).kick_members:
@@ -183,8 +185,8 @@ async def kick(ctx):
         await bot.say("I couldn't kick that user.")
 
 
-@checks.is_mod()
 @bot.command(pass_context=True)
+@commands.has_permissions(ban_members=True)
 async def ban(ctx):
     """Bans the specified User"""
     user = ctx.message.mentions[0]
@@ -217,8 +219,8 @@ async def info():
     await bot.say(message)
 
 
-@checks.is_mod()
 @bot.command(pass_context=True, aliases=['prune', 'delmsgs'])
+@commands.has_permissions(manage_messages=True)
 async def purge(ctx, amount: int):
     """Removes the given amount of messages from the given channel."""
     try:
@@ -241,7 +243,7 @@ async def an():
 async def changes():
     """A command to show what has been added and/or removed from bot"""
     await bot.say("""The changes:
-    0.1.1 -> **ADDED:** 
+    0.2.0 -> **ADDED:** 
     *~tf2 & an - link commands; 
     *~extra reactions;
     *~change - updates command showing what was added/removed from bot
