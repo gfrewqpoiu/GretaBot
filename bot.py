@@ -259,8 +259,14 @@ async def changes():
 @bot.command()
 async def quotes():
     """Random stupid quotes"""
-    await bot.say("""'robots making love-->dubstep' Alexy 2018
+    await bot.say("""'robots making love-->dubstep' Alexy 2018;
+    'Skype is idiot, Discord is a bitch' Gr3ta;
     *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
+
+@bot.command(hidden=True)
+async def UTBlobs():
+    """Provides invite link to Undertale Blobs Discord server"""
+    await bot.say("https://discord.gg/XQfqsbq")
 
 try:
     bot.run(loginID)
