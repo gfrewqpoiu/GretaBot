@@ -255,7 +255,8 @@ async def changes():
     *~tf2 & an - link commands; 
     *~extra reactions;
     *~change - updates command showing what was added/removed from bot;
-    *~Special reaction w/ user tag;""")
+    *~Special reaction w/ user tag
+    This is the BETA Version of the SAIL bot.""")
 
 @bot.command()
 async def quotes():
