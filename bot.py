@@ -81,8 +81,14 @@ async def on_message(message):
     elif text == "-.-":
         await bot.send_message(channel, "Aww don't be so upsetti, have some spaghetti!")
     elif bot.user.mentioned_in(message):
-        await bot.send_message(channel, f"May I help you with anything {message.author.mention}?")
-        
+        await bot.send_message(channel, f"Can I help you with anything?")
+        yes = await bot.wait_for_message(timeout=10, author=message.author, content="yes")
+        if yes:
+            await bot.send_message(channel, f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
+            await bot.command('help', )
+        else:
+            await bot.send_message(channel, f"Screw you then {message.author.mention}")
+
     else:
         await bot.process_commands(message)
 
@@ -243,18 +249,19 @@ async def an():
 async def changes():
     """A command to show what has been added and/or removed from bot"""
     await bot.say("""The changes:
-    0.3.0 -> **FIXED:** Broken permissions work now
+    0.3.0 -> **FIXED:** Broken permissions work now.
     0.2.0 -> **ADDED:** 
     *~tf2 & an - link commands; 
     *~extra reactions;
-    *~change - updates command showing what was added/removed from bot
-    *~Special reaction w/ user tag""")
+    *~change - updates command showing what was added/removed from bot;
+    *~Special reaction w/ user tag;""")
 
 @bot.command()
 async def quotes():
     """Random stupid quotes"""
     await bot.say("""'robots making love-->dubstep' Alexy 2018
     *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
+
 try:
     bot.run(loginID)
 except:
