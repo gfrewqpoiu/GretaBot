@@ -219,8 +219,7 @@ async def info():
     
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L
-    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice
-    *NOTE: THIS IS BETA VERSION OF S.A.I.L*"""
+    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice"""
 
     await bot.say(message)
 
