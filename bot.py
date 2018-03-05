@@ -81,31 +81,16 @@ async def on_message(message):
     elif text == "-.-":
         await bot.send_message(channel, "Aww don't be so upsetti, have some spaghetti!")
     elif bot.user.mentioned_in(message):
-        await bot.send_message(channel, f"Ping? REEEEEEE I hate you, {message.author.mention}!")
-    elif bot.user.mentioned_in(message):
-        await bot.send_message(channel, f"Nuh, don't ping me, {message.author.mention}!")
+        await bot.send_message(channel, f"Can I help you with anything?")
+        yes = await bot.wait_for_message(timeout=10, author=message.author, content="yes")
+        if yes:
+            await bot.send_message(channel, f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
+            await bot.command('help', )
+        else:
+            await bot.send_message(channel, f"Screw you then {message.author.mention}")
 
     else:
         await bot.process_commands(message)
-
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    text = message.clean_content
-    channel = message.channel
-
-    if bot.user.mentioned_in(message):
-        await bot.send_message(channel, f"Good day sir/lady, may I help you with anything, {message.author.mention}? Reply with Yes/No, please.")
-        if text == "Yes":
-            await bot.send_message(channel, "Please, use .help to review what commands I can perform.") 
-        if text == "No":
-            await bot.send_message(channel, "Oh well, then have a nice day sir/lady.")
-
-    else:
-        await bot.process_commands(message) 
-
 
 @bot.command(hidden=True)
 async def invite():
