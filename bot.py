@@ -261,6 +261,11 @@ async def quotes():
     await bot.say("""'robots making love-->dubstep' Alexy 2018
     *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
 
+@bot.command()
+async def UTBlobs():
+    """Provides invite link to Undertale Blobs Discord server"""
+    await bot.say("https://discord.gg/XQfqsbq")
+
 try:
     bot.run(loginID)
 except:
