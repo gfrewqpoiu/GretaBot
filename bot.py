@@ -101,12 +101,6 @@ async def invite():
 
 @bot.event()
 async def on_reaction(reaction, user):
-     if message.author == bot.user:
-        return
-
-    text = message.clean_content
-    channel = message.channel
-
     if emoji == ":star:":
         await bot.send_message(channel, "test")
     
