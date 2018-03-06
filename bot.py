@@ -90,6 +90,8 @@ async def on_message(message):
             await bot.send_message(channel, f"""Sun is shining, birds are chirping, flowers are blooming. On the days like this, kids like you, {message.author.mention}, should be burning in Hell...""")
     elif text == "<_>":
         await bot.send_message(channel, ">_<")
+    elif text == ">_<":
+        await bot.send_message(channel, "<_>")
         
     else:
         await bot.process_commands(message)
