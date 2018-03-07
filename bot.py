@@ -99,7 +99,7 @@ async def on_message(message):
 async def invite():
     await bot.say(f"https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot&permissions=8")
 
-@bot.event()
+@bot.event
 async def on_reaction(reaction, user):
     pass
     #if reaction == ":star:":
