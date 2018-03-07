@@ -101,11 +101,12 @@ async def invite():
 
 @bot.event()
 async def on_reaction(reaction, user):
-    if emoji == ":star:":
-        await bot.send_message(channel, "test")
+    pass
+    #if reaction == ":star:":
+    #    await bot.send_message(channel, "test")
     
-    else:
-        await bot.process_commands(message)
+    #else:
+    #    await bot.process_commands(message)
 
 @bot.command(hidden=True)
 async def version():
