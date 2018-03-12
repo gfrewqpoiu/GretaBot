@@ -93,6 +93,8 @@ async def on_message(message):
         await bot.send_message(channel, ">_<")
     elif text == ">_<":
         await bot.send_message(channel, "<_>")
+    elif text == "oof":
+        await bot.send_message(channel, "https://cdn.discordapp.com/attachments/412033002072178689/422739362929704970/New_Piskel_22.gif")
     else:
         await bot.process_commands(message)
 
@@ -103,10 +105,10 @@ async def invite():
 @bot.event
 async def on_reaction(reaction, user):
     pass
-    #if reaction == ":star:":
+    # if reaction == ":star:":
     #    await bot.send_message(channel, "test")
     
-    #else:
+    # else:
     #    await bot.process_commands(message)
 
 @bot.command(hidden=True)
