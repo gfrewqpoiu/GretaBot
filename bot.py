@@ -85,10 +85,16 @@ async def on_message(message):
         yes = await bot.wait_for_message(timeout=10, author=message.author, content="yes")
         if yes:
             await bot.send_message(channel, f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
-            await bot.command('help', )
+            #await bot.command('help', )
         else:
-            await bot.send_message(channel, f"Screw you then {message.author.mention}")
-
+            await bot.send_message(channel, f"""Sun is shining, birds are chirping, flowers are blooming. 
+            On the days like this, kids like you, {message.author.mention}, should be burning in Hell...""")
+    elif text == "<_>":
+        await bot.send_message(channel, ">_<")
+    elif text == ">_<":
+        await bot.send_message(channel, "<_>")
+    elif text == "oof":
+        await bot.send_message(channel, "https://cdn.discordapp.com/attachments/412033002072178689/422739362929704970/New_Piskel_22.gif")
     else:
         await bot.process_commands(message)
 
@@ -96,6 +102,14 @@ async def on_message(message):
 async def invite():
     await bot.say(f"https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot&permissions=8")
 
+@bot.event
+async def on_reaction(reaction, user):
+    pass
+    # if reaction == ":star:":
+    #    await bot.send_message(channel, "test")
+    
+    # else:
+    #    await bot.process_commands(message)
 
 @bot.command(hidden=True)
 async def version():
@@ -213,14 +227,19 @@ async def info():
     Hello, I'm S.A.I.L, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
     *~Date when I was created: 2017-10-15.
     *~I was ported to Python by gfrewqpoiu on 2017-12-22.
-    *~To see what commands I can perform, use `{bot.command_prefix}help`
-    *~My version currently is: {bot_version}
-    *~I was made in Lithuania, Biržai and Klaipėda, as well as Munich, Germany.
+    *~To see what commands I can perform, use `{bot.command_prefix}help`.
+    *~My version currently is: {bot_version} .
+    *~I was made in: 
+    Country: Lithuania;
+    City/Town: Biržai and Klaipėda;
+    *~Porting from js to py was done in:
+    Country: Germany;
+    City/Town: Munich. 
     
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L
     2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice
-    *NOTE: THIS IS BETA VERSION OF S.A.I.L*"""
+    This is the Beta Version of SAIL"""
 
     await bot.say(message)
 
