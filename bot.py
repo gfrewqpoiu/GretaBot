@@ -28,7 +28,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.3.0"
+bot_version = "0.4.0"
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
@@ -238,7 +238,8 @@ async def info():
     
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L
-    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice"""
+    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice
+    This is the Beta Version of SAIL"""
 
     await bot.say(message)
 
@@ -267,20 +268,23 @@ async def an():
 async def changes():
     """A command to show what has been added and/or removed from bot"""
     await bot.say("""The changes:
+    0.4.0 -> **ADDED:** More Utility Commands
     0.3.0 -> **FIXED:** Broken permissions work now.
     0.2.0 -> **ADDED:** 
     *~tf2 & an - link commands; 
     *~extra reactions;
     *~change - updates command showing what was added/removed from bot;
-    *~Special reaction w/ user tag;""")
+    *~Special reaction w/ user tag
+    This is the BETA Version of the SAIL bot.""")
 
 @bot.command()
 async def quotes():
     """Random stupid quotes"""
-    await bot.say("""'robots making love-->dubstep' Alexy 2018
+    await bot.say("""'robots making love-->dubstep' Alexy 2018;
+    'Skype is idiot, Discord is a bitch' Gr3ta;
     *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
 
-@bot.command()
+@bot.command(hidden=True)
 async def UTBlobs():
     """Provides invite link to Undertale Blobs Discord server"""
     await bot.say("https://discord.gg/XQfqsbq")
