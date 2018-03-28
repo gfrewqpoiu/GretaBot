@@ -262,7 +262,13 @@ async def tf2():
 @bot.command()
 async def an():
     """A command giving link to A->N website"""
-    await bot.say("http://approachingnirvana.com/")
+    await bot.say(""">R3DACT3D
+    >L1NK_R3M0V3D? = yes""")
+
+@bot.command()
+async def walkersjoin():
+    """A link to 24/7 Walker's Radio on youtube"""
+    await bot.say("https://www.youtube.com/watch?v=ruOlyWdUMSw")
 
 @bot.command()
 async def changes():
