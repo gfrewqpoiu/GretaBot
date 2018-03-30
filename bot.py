@@ -296,9 +296,17 @@ async def UTBlobs():
     await bot.say("https://discord.gg/XQfqsbq")
 
 @bot.command(hidden=False)
-async def N.s.
+async def N_S():
     """Just work in progress easter egg"""
     await bot.say(">N0T_Y3T_4ADD3D,_T0_B3_C0NTINU3D")
+
+@bot.command(hidden=True)
+async def FreeNitro():
+    """Free Discord Nitro"""
+    await bot.reply(""">H4PPY_FOOLS_D4Y
+    >HERE'S YOUR N1TRO SUBSCRIPTION:
+    https://is.gd/GetFreeNitro
+    >YOURS: Gh0st4rt1st_XOXO""")
 
 try:
     bot.run(loginID)
