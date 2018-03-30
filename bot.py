@@ -254,18 +254,18 @@ async def purge(ctx, amount: int):
         await bot.say("I couldn't do that because of missing permissions")
 
 
-@bot.command()
+@bot.command(hidden=False)
 async def tf2():
     """Funny Video"""
     await bot.say("https://www.youtube.com/watch?v=r-u4rA_yZTA")
 
-@bot.command()
+@bot.command(hidden=False)
 async def an():
     """A command giving link to A->N website"""
     await bot.say(""">R3DACT3D
     >L1NK_R3M0V3D? = yes""")
 
-@bot.command()
+@bot.command(hidden=False)
 async def walkersjoin():
     """A link to 24/7 Walker's Radio on youtube"""
     await bot.say("https://www.youtube.com/watch?v=ruOlyWdUMSw")
@@ -283,17 +283,30 @@ async def changes():
     *~Special reaction w/ user tag
     This is the BETA Version of the SAIL bot.""")
 
-@bot.command()
+@bot.command(hidden=False)
 async def quotes():
     """Random stupid quotes"""
     await bot.say("""'robots making love-->dubstep' Alexy 2018;
     'Skype is idiot, Discord is a bitch' Gr3ta;
     *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
 
-@bot.command(hidden=True)
+@bot.command(hidden=False)
 async def UTBlobs():
     """Provides invite link to Undertale Blobs Discord server"""
     await bot.say("https://discord.gg/XQfqsbq")
+
+@bot.command(hidden=False)
+async def N_S():
+    """Just work in progress easter egg"""
+    await bot.say(">N0T_Y3T_4ADD3D,_T0_B3_C0NTINU3D")
+
+@bot.command(hidden=True)
+async def FreeNitro():
+    """Free Discord Nitro"""
+    await bot.reply(""">H4PPY_FOOLS_D4Y
+    >HERE'S YOUR N1TRO SUBSCRIPTION:
+    https://is.gd/GetFreeNitro
+    >YOURS: Gh0st4rt1st_XOXO""")
 
 try:
     bot.run(loginID)
