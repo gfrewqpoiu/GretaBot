@@ -303,7 +303,7 @@ async def N_S():
 @bot.command(hidden=True)
 async def FreeNitro():
     """Free Discord Nitro"""
-    await bot.reply(""">H4PPY_FOOLS_D4Y
+    await bot.reply(""">H4PPY_E4STER
     >HERE'S YOUR N1TRO SUBSCRIPTION:
     <https://is.gd/GetFreeNitro>
     >YOURS: Gh0st4rt1st_XOXO""")
