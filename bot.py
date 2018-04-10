@@ -308,9 +308,9 @@ async def FreeNitro():
     <https://is.gd/GetFreeNitro>
     >YOURS: Gh0st4rt1st_XOXO""")
 
-@bot.command(hidden=True)
+@bot.command(hidden=False)
 async def probe():
-    """Use this command to check for open ports"""
+    """Use this command to check for open ports (ps. this is first step command of Easter egg)"""
     await bot.say(""">1_OP3N_P0RT_H4D_B3EN_F0UND
     >US3_ssh_T0_CR4CK_1T""")
 
@@ -338,7 +338,7 @@ async def cdhome():
     """This command sancs existing folders of bot and let's you access folder"""
     await bot.say(""">0N3_D1R3CT0RY_F0UND
     >File: README.txt
-    >US3_catREADME.txt_T0_V1EW_F1L3_C0NT3NTS""")
+    >US3_catREADME_T0_V1EW_F1L3_C0NT3NTS""")
 
 @bot.command(hidden=True)
 async def catREADME():
