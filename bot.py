@@ -308,6 +308,48 @@ async def FreeNitro():
     <https://is.gd/GetFreeNitro>
     >YOURS: Gh0st4rt1st_XOXO""")
 
+@bot.command(hidden=True)
+async def probe():
+    """Use this command to check for open ports"""
+    await bot.say(""">1_OP3N_P0RT_H4D_B3EN_F0UND
+    >US3_ssh_T0_CR4CK_1T""")
+
+@bot.command(hidden=True)
+async def ssh():
+    """This command hacks the port"""
+    await bot.say(""">CR4CKING_SUCC3SSFUL
+    >US3_porthack_T0_G4IN_4CC3SS""")
+
+@bot.command(hidden=True)
+async def porthack():
+    """This command lets you inside"""
+    await bot.say(""">H4CK_SUCC3SSFUL
+    >US3_ls_T0_4CCESS_FILES""")
+
+@bot.command(hidden=True)
+async def ls():
+    """This command scans bot and lets you into files of bot"""
+    await bot.say(""">1_D1R3CT0RY_F0UND
+    >D1R3CT0RY:home
+    >US3_cdhome_T0_4CCESS_FILES""")
+
+@bot.command(hidden=True)
+async def cdhome():
+    """This command sancs existing folders of bot and let's you access folder"""
+    await bot.say(""">0N3_D1R3CT0RY_F0UND
+    >File: README.txt
+    >US3_catREADME.txt_T0_V1EW_F1L3_C0NT3NTS""")
+
+@bot.command(hidden=True)
+async def catREADME():
+    """This command shows what's inside of file"""
+    await bot.say("""VI3WING_F1E:README.txt
+    >Congratz! You found Hacknet Easter egg;
+    >The Easter egg code was written by: Gh0st4rt1st a.k.a Gr3ta;
+    >Code was edited by: gfrewqpoiu;
+    >The Easter egg code is based on Hacknet game;
+    >Have a nice day! *Gh0st4rt1st* x0x0 """)
+
 try:
     bot.run(loginID)
 except:
