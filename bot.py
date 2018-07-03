@@ -87,8 +87,7 @@ async def on_message(message):
             await bot.send_message(channel, f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
             #await bot.command('help', )
         else:
-            await bot.send_message(channel, f"""Sun is shining, birds are chirping, flowers are blooming. 
-            On the days like this, kids like you, {message.author.mention}, should be burning in Hell...""")
+            await bot.send_message(channel, f"""Oh my fucking GOD! Fuck you {message.author.mention}! >:c""")
     elif text == "<_>":
         await bot.send_message(channel, ">_<")
     elif text == ">_<":
