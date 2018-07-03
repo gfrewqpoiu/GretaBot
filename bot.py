@@ -186,6 +186,11 @@ async def say(*, message:str):
     """Repeats what you said"""
     await bot.say(message)
 
+@bot.command(pass_context=True, hidden=True)
+async def say2(ctx, *, message:str):
+    """Repeats what you said and removes it"""
+    await bot.delete_message(ctx.message)
+    await bot.say(message)
 
 @bot.command(pass_context=True)
 @commands.has_permissions(kick_members=True)
