@@ -62,7 +62,7 @@ async def on_server_remove(server):
 
 @bot.event
 async def on_message(message):
-    if message.author == bot.user:
+    if message.author.bot:
         return
 
     text = message.clean_content
