@@ -356,6 +356,11 @@ async def catREADME():
     >The Easter egg code is based on Hacknet game;
     >Have a nice day! *Gh0st4rt1st* *x0x0* """)
 
+@bot.command()
+async def annoyeveryone():
+    for i in range(10):
+            await bot.say("Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",  tts=True)
+            await asyncio.sleep(30)
 
 try:
     bot.run(loginID)
