@@ -15,7 +15,7 @@ try:  # These are mandatory.
     import asyncio
 except ImportError:
     import pip
-    pip.main(['install', '--user', '--upgrade', 'discord.py[voice]'])
+    #pip.main(['install', '--user', '--upgrade', 'discord.py[voice]'])
     _restart()
 
 import checks
