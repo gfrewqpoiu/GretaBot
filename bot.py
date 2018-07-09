@@ -94,6 +94,8 @@ async def on_message(message):
         await bot.send_message(channel, "<_>")
     elif text == "oof":
         await bot.send_message(channel, "https://cdn.discordapp.com/attachments/412033002072178689/422739362929704970/New_Piskel_22.gif")
+    elif text == "thot":
+        await bot.send_message(channel, "https://cdn.discordapp.com/attachments/343693498752565248/465931036384165888/tenor_1.gif")
     else:
         await bot.process_commands(message)
 
@@ -185,12 +187,6 @@ async def say(*, message:str):
     """Repeats what you said"""
     await bot.say(message)
 
-@bot.command(pass_context=True, hidden=True)
-@commands.has_permissions(administrator=True)
-async def say2(ctx, *, message:str):
-    """Repeats what you said and removes it"""
-    await bot.delete_message(ctx.message)
-    await bot.say(message)
 
 @bot.command(pass_context=True)
 @commands.has_permissions(kick_members=True)
@@ -354,6 +350,10 @@ async def catREADME():
     >The Easter egg code is based on Hacknet game;
     >Have a nice day! *Gh0st4rt1st* *x0x0* """)
 
+@bot.command(hidden=False)
+async def tts():
+    for i in range(10):
+        await bot.say("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
 
 try:
     bot.run(loginID)
