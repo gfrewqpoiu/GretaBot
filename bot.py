@@ -15,7 +15,7 @@ try:  # These are mandatory.
     import asyncio
 except ImportError:
     import pip
-    pip.main(['install', '--user', '--upgrade', 'discord.py[voice]'])
+    #pip.main(['install', '--user', '--upgrade', 'discord.py[voice]'])
     _restart()
 
 import checks
@@ -62,7 +62,7 @@ async def on_server_remove(server):
 
 @bot.event
 async def on_message(message):
-    if message.author == bot.user:
+    if message.author.bot:
         return
 
     text = message.clean_content
@@ -350,10 +350,17 @@ async def catREADME():
     >The Easter egg code is based on Hacknet game;
     >Have a nice day! *Gh0st4rt1st* *x0x0* """)
 
-@bot.command(hidden=False)
+@bot.command(hidden=True)
+async def annoyeveryone():
+    for i in range(10):
+            await bot.say("Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",  tts=True)
+            await asyncio.sleep(30)
+            
+@bot.command(hidden=True)
 async def tts():
     for i in range(10):
         await bot.say("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
+        await asyncio.sleep(30)
 
 try:
     bot.run(loginID)
