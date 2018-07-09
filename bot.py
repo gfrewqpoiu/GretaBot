@@ -87,14 +87,15 @@ async def on_message(message):
             await bot.send_message(channel, f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
             #await bot.command('help', )
         else:
-            await bot.send_message(channel, f"""Sun is shining, birds are chirping, flowers are blooming. 
-            On the days like this, kids like you, {message.author.mention}, should be burning in Hell...""")
+            await bot.send_message(channel, f"""Oh my fucking GOD! Fuck you {message.author.mention}! >:c""")
     elif text == "<_>":
         await bot.send_message(channel, ">_<")
     elif text == ">_<":
         await bot.send_message(channel, "<_>")
     elif text == "oof":
         await bot.send_message(channel, "https://cdn.discordapp.com/attachments/412033002072178689/422739362929704970/New_Piskel_22.gif")
+    elif text == "thot":
+        await bot.send_message(channel, "https://cdn.discordapp.com/attachments/343693498752565248/465931036384165888/tenor_1.gif")
     else:
         await bot.process_commands(message)
 
@@ -186,12 +187,6 @@ async def say(*, message:str):
     """Repeats what you said"""
     await bot.say(message)
 
-@bot.command(pass_context=True, hidden=True)
-@commands.has_permissions(administrator=True)
-async def say2(ctx, *, message:str):
-    """Repeats what you said and removes it"""
-    await bot.delete_message(ctx.message)
-    await bot.say(message)
 
 @bot.command(pass_context=True)
 @commands.has_permissions(kick_members=True)
@@ -244,8 +239,7 @@ async def info():
     
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L
-    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice
-    This is the Beta Version of SAIL"""
+    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice"""
 
     await bot.say(message)
 
@@ -356,11 +350,17 @@ async def catREADME():
     >The Easter egg code is based on Hacknet game;
     >Have a nice day! *Gh0st4rt1st* *x0x0* """)
 
-@bot.command()
+@bot.command(hidden=True)
 async def annoyeveryone():
     for i in range(10):
             await bot.say("Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",  tts=True)
             await asyncio.sleep(30)
+            
+@bot.command(hidden=True)
+async def tts():
+    for i in range(10):
+        await bot.say("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
+        await asyncio.sleep(30)
 
 try:
     bot.run(loginID)
