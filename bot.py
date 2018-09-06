@@ -29,6 +29,7 @@ login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
 bot_version = "0.4.0"
+main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
@@ -96,6 +97,9 @@ async def on_message(message):
         await bot.send_message(channel, "https://cdn.discordapp.com/attachments/412033002072178689/422739362929704970/New_Piskel_22.gif")
     elif text == "thot":
         await bot.send_message(channel, "https://cdn.discordapp.com/attachments/343693498752565248/465931036384165888/tenor_1.gif")
+    elif channel.is_private:
+        if text[0]!=bot.command_prefix and main_channel is not None and channel.user.id in ['240224846217216000', '167311142744489984']:
+            await bot.send_message(main_channel,text)
     else:
         await bot.process_commands(message)
 
@@ -193,6 +197,15 @@ async def say2(ctx, *, message:str):
     """Repeats what you said and removes it"""
     await bot.delete_message(ctx.message)
     await bot.say(message)
+
+@bot.command(pass_context=True, hidden=True)
+@commands.has_permissions(administrator=True)
+async def setchannel(ctx):
+    """Sets the channel for PM messaging"""
+    global main_channel
+    main_channel=ctx.message.channel
+    await bot.delete_message(ctx.message)
+
 
 @bot.command(pass_context=True)
 @commands.has_permissions(kick_members=True)
