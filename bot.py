@@ -308,6 +308,7 @@ async def changes(ctx):
 
 @bot.command()
 async def upcoming(ctx):
+    """Previews upcoming plans if there are any"""
     await ctx.send("""This is upcoming:```I am rn in the process of being rewritten and updated to Python 3.7
     I heard gfrew is doing that because then I will automatically reconnect to Discord,
     if there are any connection issues. So I will be on here more often.```""")
