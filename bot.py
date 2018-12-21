@@ -54,7 +54,7 @@ async def on_ready():
         amount += 1
     print(f"I am in {amount} channels")
     print('------')
-    await bot.change_presence(game=discord.Game(name='waiting'))
+    #await bot.change_presence(game=discord.Game(name='waiting'))
 
 @bot.event
 async def on_guild_join(server):
