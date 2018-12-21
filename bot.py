@@ -66,6 +66,16 @@ async def on_guild_remove(server):
 
 @bot.event
 async def on_message(message):
+    def yescheck(oldmessage):
+        text = oldmessage.clean_content.lower()
+        agreement = ["yes", "y", "yeah", "ja", "j"]
+        return text in agreement and oldmessage.author == message.author and oldmessage.channel == message.channel
+
+    def nocheck(oldmessage):
+        text = oldmessage.clean_content.lower()
+        agreement = ["no", "n", "nah", "nein"]
+        return text in agreement and oldmessage.author == message.author and oldmessage.channel == message.channel
+
     if message.author.bot:
         return
 
@@ -86,12 +96,15 @@ async def on_message(message):
         await channel.send("Aww don't be so upsetti, have some spaghetti!")
     elif bot.user.mentioned_in(message):
         await channel.send(f"Can I help you with anything?")
-        yes = await bot.wait_for_message(timeout=10, author=message.author, content="yes")
+        yes = await bot.wait_for(timeout=15.0, check=yescheck)
+        no = await bot.wait_for(timeout=15.0, check=nocheck)
         if yes:
             await channel.send(f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
+        elif no:
+            await channel.send(f"""Oh my fucking GOD! Fuck you {message.author.mention}! >:c""")
             #await bot.command('help', )
         else:
-            await channel.send(f"""Oh my fucking GOD! Fuck you {message.author.mention}! >:c""")
+            pass
     elif text == "<_>":
         await channel.send(">_<")
     elif text == ">_<":
@@ -100,8 +113,8 @@ async def on_message(message):
         await channel.send("https://cdn.discordapp.com/attachments/412033002072178689/422739362929704970/New_Piskel_22.gif")
     elif text == "thot":
         await channel.send("https://cdn.discordapp.com/attachments/343693498752565248/465931036384165888/tenor_1.gif")
-    elif channel.is_instance(discord.abc.PrivateChannel):
-        if text[0]!=bot.command_prefix and main_channel is not None and channel.user.id in ['240224846217216000', '167311142744489984']:
+    elif isinstance(channel, discord.abc.PrivateChannel):
+        if text[0]!=bot.command_prefix and main_channel is not None and channel.user.id in [240224846217216000, 167311142744489984]:
             await main_channel.send(text)
     else:
         await bot.process_commands(message)
