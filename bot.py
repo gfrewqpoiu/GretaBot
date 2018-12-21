@@ -41,6 +41,7 @@ async def on_ready():
     print('Logged in as')
     print(bot.user.name)
     print(bot.user.id)
+    print(f"The bot prefix is {bot.command_prefix}")
     print(f"Using Bot Version: {bot_version}")
     print('------')
     print("")
@@ -304,6 +305,12 @@ async def changes(ctx):
     *~change - updates command showing what was added/removed from bot;
     *~Special reaction w/ user tag
     This is the REWRITE Version of the SAIL bot.""")
+
+@bot.command()
+async def upcoming():
+    await bot.say("""This is upcoming:```I am rn in the process of being rewritten and updated to Python 3.7
+    I heard gfrew is doing that because then I will automatically reconnect to Discord,
+    if there are any connection issues. So I will be on here more often.```""")
 
 @bot.command(hidden=False)
 async def quotes(ctx):
