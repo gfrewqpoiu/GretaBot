@@ -43,7 +43,7 @@ async def on_ready():
     print('------')
     print("")
     print("I am part of the following servers:")
-    for server in bot.servers:
+    for server in bot.guilds:
         print(f"{server.name}")
     print("")
     amount = 0
@@ -119,6 +119,7 @@ async def on_reaction(reaction, user):
 @bot.command(hidden=True)
 async def version():
     """Gives back the bot version"""
+    await bot.wait_for_message()
     await bot.say(bot_version)
 
 #Utility Commands
