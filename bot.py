@@ -307,8 +307,8 @@ async def changes(ctx):
     This is the REWRITE Version of the SAIL bot.""")
 
 @bot.command()
-async def upcoming():
-    await bot.say("""This is upcoming:```I am rn in the process of being rewritten and updated to Python 3.7
+async def upcoming(ctx):
+    await ctx.send("""This is upcoming:```I am rn in the process of being rewritten and updated to Python 3.7
     I heard gfrew is doing that because then I will automatically reconnect to Discord,
     if there are any connection issues. So I will be on here more often.```""")
 
