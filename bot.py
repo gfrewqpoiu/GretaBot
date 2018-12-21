@@ -96,8 +96,8 @@ async def on_message(message):
         await channel.send("Aww don't be so upsetti, have some spaghetti!")
     elif bot.user.mentioned_in(message):
         await channel.send(f"Can I help you with anything?")
-        yes = await bot.wait_for(timeout=15.0, check=yescheck)
-        no = await bot.wait_for(timeout=15.0, check=nocheck)
+        yes = await bot.wait_for('message', timeout=15.0, check=yescheck)
+        no = await bot.wait_for('message', timeout=15.0, check=nocheck)
         if yes:
             await channel.send(f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
         elif no:
