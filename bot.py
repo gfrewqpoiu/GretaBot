@@ -32,7 +32,7 @@ bot_version = "0.4.1"
 main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
-                   description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
+                   description=settings.get('Bot Description', 'S.A.I.L'), pm_help=True)
 
 @bot.event
 async def on_ready():
@@ -300,8 +300,7 @@ async def changes():
     *~tf2 & an - link commands; 
     *~extra reactions;
     *~change - updates command showing what was added/removed from bot;
-    *~Special reaction w/ user tag
-    This is the BETA Version of the SAIL bot.""")
+    *~Special reaction w/ user tag""")
 
 @bot.command()
 async def upcoming():
