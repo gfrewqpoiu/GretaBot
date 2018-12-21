@@ -22,7 +22,7 @@ import checks
 import logging
 import subprocess
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 config = checks.getconf()
 login = config['Login']
