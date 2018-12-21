@@ -34,7 +34,7 @@ main_channel=None
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'A WIP bot'), pm_help=True)
 
-bot.owner_id = settings.get('Owner ID') #Overwrites the Botid (which is now by default the token creator) with the config
+bot.owner_id = int(settings.get('Owner ID')) #Overwrites the Botid (which is now by default the token creator) with the config
 
 @bot.event
 async def on_ready():
@@ -113,8 +113,8 @@ async def on_message(message):
         await channel.send("https://cdn.discordapp.com/attachments/412033002072178689/422739362929704970/New_Piskel_22.gif")
     elif text == "thot":
         await channel.send("https://cdn.discordapp.com/attachments/343693498752565248/465931036384165888/tenor_1.gif")
-    elif isinstance(channel, discord.abc.PrivateChannel):
-        if text[0]!=bot.command_prefix and main_channel is not None and channel.user.id in [240224846217216000, 167311142744489984]:
+    elif isinstance(channel, discord.DMChannel):
+        if text[0]!=bot.command_prefix and main_channel is not None and channel.recipient.id in [240224846217216000, 167311142744489984]:
             await main_channel.send(text)
     else:
         await bot.process_commands(message)
