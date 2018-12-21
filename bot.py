@@ -28,7 +28,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.4.0"
+bot_version = "0.4.1"
 main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
@@ -39,6 +39,7 @@ async def on_ready():
     print('Logged in as')
     print(bot.user.name)
     print(bot.user.id)
+    print(f"The bot prefix is {bot.command_prefix}")
     print(f"Using Bot Version: {bot_version}")
     print('------')
     print("")
