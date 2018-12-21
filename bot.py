@@ -302,6 +302,13 @@ async def changes():
     *~Special reaction w/ user tag
     This is the BETA Version of the SAIL bot.""")
 
+@bot.command()
+async def upcoming():
+    await bot.say("""This is upcoming:
+    ```I am rn in the process of being rewritten and updated to Python 3.7
+    I heard gfrew is doing that because then I will automatically reconnect to Discord,
+    if there are any connection issues. So I will be on here more often.```""")
+
 @bot.command(hidden=False)
 async def quotes():
     """Random stupid quotes"""
