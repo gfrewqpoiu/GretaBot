@@ -36,6 +36,14 @@ bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
 
 bot.owner_id = int(settings.get('Owner ID')) #Overwrites the Botid (which is now by default the token creator) with the config
 
+def inputcheck(text) -> bool:
+    if text.lower() in ["yes", "y", "yeah", "ja", "j"]:
+        return True
+    elif text.lower() in ["no", "n", "nah", "nein"]:
+        return False
+    else:
+        return None
+
 @bot.event
 async def on_ready():
     print('Logged in as')
@@ -66,15 +74,15 @@ async def on_guild_remove(server):
 
 @bot.event
 async def on_message(message):
-    def yescheck(oldmessage):
+    def check(oldmessage):
         text = oldmessage.clean_content.lower()
-        agreement = ["yes", "y", "yeah", "ja", "j"]
+        agreement = ["yes", "y", "yeah", "ja", "j", "no", "n", "nah", "nein"]
+        #disagreement = ["no", "n", "nah", "nein"]
         return text in agreement and oldmessage.author == message.author and oldmessage.channel == message.channel
-
-    def nocheck(oldmessage):
-        text = oldmessage.clean_content.lower()
-        agreement = ["no", "n", "nah", "nein"]
-        return text in agreement and oldmessage.author == message.author and oldmessage.channel == message.channel
+        #elif text in disagreement:
+            #return oldmessage.author == message.author and oldmessage.channel == message.channel, False
+        #else:
+            #return False, False
 
     if message.author.bot:
         return
@@ -96,13 +104,17 @@ async def on_message(message):
         await channel.send("Aww don't be so upsetti, have some spaghetti!")
     elif bot.user.mentioned_in(message):
         await channel.send(f"Can I help you with anything?")
-        yes = await bot.wait_for('message', timeout=15.0, check=yescheck)
-        no = await bot.wait_for('message', timeout=15.0, check=nocheck)
-        if yes:
-            await channel.send(f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
-        elif no:
-            await channel.send(f"""Oh my fucking GOD! Fuck you {message.author.mention}! >:c""")
-            #await bot.command('help', )
+        try:
+            tripped = await bot.wait_for('message', timeout=15.0, check=check)
+        except TimeoutError:
+            tripped = False
+        #no = await bot.wait_for('message', timeout=15.0, check=nocheck)
+        if tripped:
+            if inputcheck(tripped.clean_content.lower()):
+                await channel.send(f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
+            elif inputcheck(tripped.clean_content.lower()) == False:
+                await channel.send(f"""Oh my fucking GOD! Fuck you {message.author.mention}! >:c""")
+
         else:
             pass
     elif text == "<_>":
