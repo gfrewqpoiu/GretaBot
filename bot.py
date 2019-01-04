@@ -34,7 +34,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.6.0_database"
+bot_version = "0.6.0"
 main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
@@ -452,11 +452,22 @@ async def tts(ctx):
         await ctx.send("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
         await asyncio.sleep(30)
 
-@bot.command(hidden=True)
+@bot.command(hidden=True, alias=['addq'])
 @commands.has_permissions(administrator=True)
 async def addquote(ctx, keyword: str, *, quotetext: str):
-    quote = Quote(guildId=ctx.message.guild.id, keyword=keyword, result=quotetext, authorId=ctx.author.id)
+    quote = Quote(guildId=ctx.message.guild.id, keyword=keyword.lower(), result=quotetext, authorId=ctx.author.id)
     quote.save()
+    await ctx.send("I saved the quote.")
+
+@bot.command(hidden=True, alias=['delq'])
+@commands.has_permissions(administrator=True)
+async def delquote(ctx, keyword: str):
+    quote = Quote.get_or_none(Quote.guildId == ctx.guild.id, Quote.keyword == keyword.lower())
+    if quote:
+        quote.delete()
+        await ctx.send("The quote was deleted.")
+    else:
+        await ctx.send("I could not find the quote.")
 
 try:
     bot.run(loginID, reconnect=True)
