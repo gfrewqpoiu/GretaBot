@@ -109,3 +109,9 @@ venv.bak/
 config.ini
 
 Gretabot-venv/
+
+*.db
+
+*.db-shm
+
+*.db-wal
