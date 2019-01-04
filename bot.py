@@ -464,7 +464,7 @@ async def addquote(ctx, keyword: str, *, quotetext: str):
 async def delquote(ctx, keyword: str):
     quote = Quote.get_or_none(Quote.guildId == ctx.guild.id, Quote.keyword == keyword.lower())
     if quote:
-        quote.delete()
+        quote.delete_instance()
         await ctx.send("The quote was deleted.")
     else:
         await ctx.send("I could not find the quote.")
