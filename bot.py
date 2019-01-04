@@ -134,11 +134,11 @@ async def on_message(message):
             await channel.send("I am fine.")
         elif text == "what are you doing?":
             await channel.send("Look at my playing status.")
-        elif text == "where I can find rules?":
+        elif text == "where i can find rules?" or text == "where can i find the rules?":
             await channel.send("Rules are in #rules_and_rules_updates, have a nice day :D.")
-        elif text == "where I can post my artworks/book?":
+        elif text == "where i can post my artworks/book?":
             await channel.send("You can post your artwork in #art_corner and your book in #book_promotes :D.")
-        elif text == "where I can dump my memes and shitpost?":
+        elif text == "where i can dump my memes and shitpost?":
             await channel.send("Meme dumpage happens in #dank_meme_depository and shitposting in #shitposting :D.")
         elif text == "how are you even responding?":
             await channel.send("My master did her magic... :eyes: ") 
