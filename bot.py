@@ -142,7 +142,7 @@ async def on_message(message):
             await channel.send("Meme dumpage happens in #dank_meme_depository and shitposting in #shitposting :D.")
         elif text == "how are you even responding?":
             await channel.send("My master did her magic... :eyes: ")
-        elif text == "where I can find a Walker #5120's book?":
+        elif text == "where i can find a Walker #5120's book?":
             await channel.send("Here is the link: https://my.w.tt/LexRMPK1eS. Enjoy reading! :D")
     else:
         await bot.process_commands(message)
