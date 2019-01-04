@@ -450,16 +450,16 @@ async def tts(ctx):
         await ctx.send("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
         await asyncio.sleep(30)
 
-@bot.command(hidden=True, alias=['addq'])
+@bot.command(hidden=True, aliases=['addq'])
 @commands.has_permissions(administrator=True)
 async def addquote(ctx, keyword: str, *, quotetext: str):
     quote = Quote(guildId=ctx.message.guild.id, keyword=keyword.lower(), result=quotetext, authorId=ctx.author.id)
     quote.save()
     await ctx.send("I saved the quote.")
 
-@bot.command(hidden=True, alias=['delq'])
+@bot.command(hidden=True, aliases=['delq', 'delquote'])
 @commands.has_permissions(administrator=True)
-async def delquote(ctx, keyword: str):
+async def deletequote(ctx, keyword: str):
     quote = Quote.get_or_none(Quote.guildId == ctx.guild.id, Quote.keyword == keyword.lower())
     if quote:
         quote.delete_instance()
