@@ -87,7 +87,7 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    text = message.clean_content
+    text = message.clean_content.lower()
     channel = message.channel
 
     if text == "/o/":
@@ -128,6 +128,13 @@ async def on_message(message):
     elif isinstance(channel, discord.DMChannel):
         if text[0]!=bot.command_prefix and main_channel is not None and channel.recipient.id in [240224846217216000, 167311142744489984]:
             await main_channel.send(text)
+
+    elif channel.id == 529311873330577408:
+        if text == "how are you?":
+            await channel.send("I am fine.")
+        elif text == "what are you doing?":
+            await channel.send("Look at my playing status, duh.")
+
     else:
         await bot.process_commands(message)
 
