@@ -21,6 +21,12 @@ except ImportError:
 import checks
 import logging
 import subprocess
+import peewee
+from database import *
+
+db.connect()
+db.create_tables([Quote])
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,7 +34,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.5.0_rewrite"
+bot_version = "0.6.0_database"
 main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
@@ -89,6 +95,14 @@ async def on_message(message):
 
     text = message.clean_content.lower()
     channel = message.channel
+    guild = message.guild
+
+    if guild:
+        quote = Quote.get_or_none(guild.id == Quote.guildId, text == Quote.keyword)
+        if quote:
+            await channel.send(quote.result)
+            return
+
 
     if text == "/o/":
         await channel.send("\o\\")
@@ -174,11 +188,12 @@ async def shutdown(ctx):
     await ctx.send("Shutting down!", delete_after=3)
     await asyncio.sleep(5)
     print(f"Shutting down on request of {ctx.author.name}!")
-    await bot.close()
+    db.close()
     try:
+        await bot.close()
         sys.exit()
     except:
-        {}
+        pass
 
 
 
@@ -209,8 +224,12 @@ async def restart(ctx):
     await ctx.send("Restarting", delete_after=3)
     await asyncio.sleep(5)
     print(f"Restarting on request of {ctx.author.name}!")
-    await bot.close()
-    _restart()
+    db.close()
+    try:
+        await bot.close()
+        _restart()
+    except:
+        pass
 
 
 @bot.command(hidden=True, aliases=['setgame', 'setplaying'])
@@ -432,6 +451,12 @@ async def tts(ctx):
     for i in range(10):
         await ctx.send("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
         await asyncio.sleep(30)
+
+@bot.command(hidden=True)
+@commands.has_permissions(administrator=True)
+async def addquote(ctx, keyword: str, *, quotetext: str):
+    quote = Quote(guildId=ctx.message.guild.id, keyword=keyword, result=quotetext, authorId=ctx.author.id)
+    quote.save()
 
 try:
     bot.run(loginID, reconnect=True)
