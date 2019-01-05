@@ -453,6 +453,9 @@ async def tts(ctx):
 @bot.command(hidden=True, aliases=['addq'])
 @commands.has_permissions(administrator=True)
 async def addquote(ctx, keyword: str, *, quotetext: str):
+    """Adds a quote to the database
+    Specify the keword in "" if it has spaces in it.
+    Like this: addquote "key message" Reacting Text"""
     quote = Quote(guildId=ctx.message.guild.id, keyword=keyword.lower(), result=quotetext, authorId=ctx.author.id)
     quote.save()
     await ctx.send("I saved the quote.")
