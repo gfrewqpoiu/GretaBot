@@ -453,6 +453,9 @@ async def tts(ctx):
 @bot.command(hidden=True, aliases=['addq'])
 @commands.has_permissions(administrator=True)
 async def addquote(ctx, keyword: str, *, quotetext: str):
+    """Adds a quote to the database
+    Specify the keword in "" if it has spaces in it.
+    Like this: addquote "key message" Reacting Text"""
     quote = Quote(guildId=ctx.message.guild.id, keyword=keyword.lower(), result=quotetext, authorId=ctx.author.id)
     quote.save()
     await ctx.send("I saved the quote.")
@@ -460,6 +463,9 @@ async def addquote(ctx, keyword: str, *, quotetext: str):
 @bot.command(hidden=True, aliases=['delq', 'delquote'])
 @commands.has_permissions(administrator=True)
 async def deletequote(ctx, keyword: str):
+    """Deletes the quote with the given keyword
+    If the keyword has spaces in it, it must be quoted like this:
+    deletequote "Keyword with spaces" """
     quote = Quote.get_or_none(Quote.guildId == ctx.guild.id, Quote.keyword == keyword.lower())
     if quote:
         quote.delete_instance()
@@ -467,6 +473,16 @@ async def deletequote(ctx, keyword: str):
     else:
         await ctx.send("I could not find the quote.")
 
+@bot.command(aliases=['liqu'])
+async def listquotes(ctx):
+    """Lists all quotes on the current server"""
+    result = ""
+    for quote in Quote.select(Quote.keyword).where(ctx.guild.id == Quote.guildId):
+        result=result+str(quote.keyword)+"; "
+    if result:
+        await ctx.send(result)
+    else:
+        await ctx.send("I couldn't find any quotes on this server")
 try:
     bot.run(loginID, reconnect=True)
 except:
