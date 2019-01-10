@@ -34,7 +34,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.6.0"
+bot_version = "0.6.1"
 main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
@@ -225,6 +225,7 @@ async def restart(ctx):
     await asyncio.sleep(5)
     print(f"Restarting on request of {ctx.author.name}!")
     db.close()
+    await bot.logout()
     try:
         await bot.close()
         _restart()
@@ -239,7 +240,8 @@ async def gametitle(ctx, *, message: str):
     if not ctx.author.permissions_in(ctx.message.channel).manage_nicknames:
         await ctx.send("You don't have permission to do this")
         return
-    await bot.change_presence(game=discord.Game(name=message))
+    game = discord.Game(message)
+    await bot.change_presence(activity=game)
 
 
 @bot.command()
@@ -331,7 +333,7 @@ async def info(ctx):
 async def purge(ctx, amount: int):
     """Removes the given amount of messages from the given channel."""
     try:
-        await ctx.purge_from(ctx.message.channel, limit=amount+1)
+        await ctx.channel.purge(limit=(amount+1))
     except discord.Forbidden:
         await ctx.send("I couldn't do that because of missing permissions")
 
@@ -356,6 +358,7 @@ async def walkersjoin(ctx):
 async def changes(ctx):
     """A command to show what has been added and/or removed from bot"""
     await ctx.send("""The changes:
+    0.6.1 -> **FIXED**: The purge command works again and so does the setplaying command
     0.6.0 -> **ADDED:** Quote Sytem using a Database
     0.5.0 -> **CHANGED:** Rewrite for a new version of Discord.py
     0.4.0 -> **ADDED:** More Utility Commands
