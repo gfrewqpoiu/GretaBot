@@ -502,7 +502,7 @@ async def evaluate(ctx, *, message:str):
 @bot.command(hidden=True, aliases=['leaveserver, leave'])
 @commands.is_owner()
 async def leaveguild(ctx, id: int):
-    guild = await bot.get_guild(id)
+    guild = bot.get_guild(id)
     await guild.leave()
     await ctx.send("I left that Guild.")
 
