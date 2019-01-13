@@ -140,6 +140,10 @@ async def on_message(message):
         await channel.send("https://cdn.discordapp.com/attachments/412033002072178689/422739362929704970/New_Piskel_22.gif")
     elif text == "thot":
         await channel.send("https://cdn.discordapp.com/attachments/343693498752565248/465931036384165888/tenor_1.gif")
+    elif text == "|o|":
+        await channel.send("/o\\")
+    elif text == "XD":
+        await channel.send("XC")
     elif isinstance(channel, discord.DMChannel):
         if text[0]!=bot.command_prefix and main_channel is not None and channel.recipient.id in [240224846217216000, 167311142744489984]:
             await main_channel.send(text)
@@ -203,7 +207,7 @@ async def shutdown(ctx):
 async def update(ctx):
     """Updates the bot with the newest Version from GitHub
         Only works for the bot owner"""
-    await ctx.send("Ok, I am updating from GitHub")
+    await ctx.send("Ok, I am updating from GitHub.")
     import pip
     #pip.main(['install', '--user', '--upgrade', 'discord.py[voice]'])
     try:
@@ -213,7 +217,7 @@ async def update(ctx):
         embed.set_footer(text=output.stdout.decode('utf-8'))
         await ctx.send(embed=embed)
     except:
-        await ctx.send("That didn't work for some reason")
+        await ctx.send("That didn't work for some reason...")
 
 
 
@@ -239,7 +243,7 @@ async def restart(ctx):
 async def gametitle(ctx, *, message: str):
     """Sets the currently playing status of the bot"""
     if not ctx.author.permissions_in(ctx.message.channel).manage_nicknames:
-        await ctx.send("You don't have permission to do this")
+        await ctx.send("You don't have permission to do this...")
         return
     game = discord.Game(message)
     await bot.change_presence(activity=game)
@@ -271,7 +275,7 @@ async def setchannel(ctx):
     global main_channel
     main_channel=ctx.channel
     await ctx.message.delete()
-    await ctx.send("Set the default channel to this channel")
+    await ctx.send("Set the default channel to this channel.")
 
 
 
@@ -281,7 +285,7 @@ async def kick(ctx):
     """Kicks the specified User"""
     user = ctx.message.mentions[0]
     if user==None:
-        await ctx.send("No user was specified")
+        await ctx.send("No user was specified.")
         return
     try:
         await ctx.kick(user)
@@ -296,7 +300,7 @@ async def ban(ctx):
     """Bans the specified User"""
     user = ctx.message.mentions[0]
     if user == None:
-        await ctx.send("No user was specified")
+        await ctx.send("No user was specified.")
         return
     try:
         await ctx.ban(user)
@@ -323,8 +327,8 @@ async def info(ctx):
     I am currently being rewritten to work in the new discordpy version.
     
     Fun facts:
-    1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L
-    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice"""
+    1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L;
+    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice."""
 
     await ctx.send(message)
 
@@ -336,7 +340,7 @@ async def purge(ctx, amount: int):
     try:
         await ctx.channel.purge(limit=(amount+1))
     except discord.Forbidden:
-        await ctx.send("I couldn't do that because of missing permissions")
+        await ctx.send("I couldn't do that because of missing permissions...")
 
 
 @bot.command(hidden=False)
@@ -359,83 +363,68 @@ async def walkersjoin(ctx):
 async def changes(ctx):
     """A command to show what has been added and/or removed from bot"""
     await ctx.send("""The changes:
+    **NOTE**: Kevin, staph leaving sentences in quotation marks in code without fullstop at end of sentences. -_- ~ Gh0st4rt1st.
+    **FIXED & REMOVED**: Two useless commands were removed due to them no longer being needed.
     0.6.1 -> **FIXED**: The purge command works again and so does the setplaying command
-    0.6.0 -> **ADDED:** Quote Sytem using a Database
-    0.5.0 -> **CHANGED:** Rewrite for a new version of Discord.py
-    0.4.0 -> **ADDED:** More Utility Commands
+    0.6.0 -> **ADDED:** Quote Sytem using a Database.
+    0.5.0 -> **CHANGED:** Rewrite for a new version of Discord.py.
+    0.4.0 -> **ADDED:** More Utility Commands.
     0.3.0 -> **FIXED:** Broken permissions work now.
     0.2.0 -> **ADDED:** 
     *~tf2 & an - link commands; 
     *~extra reactions;
     *~change - updates command showing what was added/removed from bot;
-    *~Special reaction w/ user tag""")
+    *~Special reaction w/ user tag.""")
 
 @bot.command()
 async def upcoming(ctx):
     """Previews upcoming plans if there are any"""
     await ctx.send("""This is upcoming:```All secret.```""")
 
-@bot.command(hidden=False)
-async def quotes(ctx):
-    """Random stupid quotes, will be replaced by a proper quote system soon-ish"""
-    await ctx.send("""'robots making love-->dubstep' Alexy 2018;
-    'Skype is idiot, Discord is a bitch' Gr3ta;
-    *MORE STUPID QUOTES WILL BE ADDED LATER ON! Cuz why not? ( ͡° ͜ʖ ͡°)*""")
-
-@bot.command(hidden=False)
-async def UTBlobs(ctx):
-    """Provides invite link to Undertale Blobs Discord server"""
-    await ctx.send("https://discord.gg/XQfqsbq")
-
-@bot.command(hidden=False)
-async def N_S(ctx):
-    """Just work in progress easter egg"""
-    await ctx.send(">N0T_Y3T_4ADD3D,_T0_B3_C0NTINU3D")
-
 @bot.command(hidden=True)
 async def FreeNitro(ctx):
     """Free Discord Nitro"""
-    await ctx.send(f"""{ctx.author.mention} >H4PPY_E4STER
-    >HERE'S YOUR N1TRO SUBSCRIPTION:
+    await ctx.send(f"""{ctx.author.mention} >HAPPY_EASTER
+    >HERE'S YOUR NITRO SUBSCRIPTION:
     <https://is.gd/GetFreeNitro>
     >YOURS: Gh0st4rt1st_x0x0""")
 
 @bot.command(hidden=False)
 async def probe(ctx):
     """Use this command to check for open ports (ps. this is first step command of Easter egg)"""
-    await ctx.send(""">1_OP3N_P0RT_H4D_B3EN_F0UND
-    >US3_ssh_T0_CR4CK_1T""")
+    await ctx.send(""">1_OPEN_PORT_HAD_BEEN_FOUND
+    >USE_ssh_TO_CRACK_IT""")
 
 @bot.command(hidden=True)
 async def ssh(ctx):
     """This command hacks the port"""
-    await ctx.send(""">CR4CKING_SUCC3SSFUL
-    >US3_porthack_T0_G4IN_4CC3SS""")
+    await ctx.send(""">CRACKING_SUCCESSFUL
+    >USE_porthack_TO_GAIN_ACCESS""")
 
 @bot.command(hidden=True)
 async def porthack(ctx):
     """This command lets you inside"""
-    await ctx.send(""">H4CK_SUCC3SSFUL
-    >US3_ls_T0_4CCESS_FILES""")
+    await ctx.send(""">HACK_SUCCESSFUL
+    >USE_ls_TO_ACCESS_FILES""")
 
 @bot.command(hidden=True)
 async def ls(ctx):
     """This command scans bot and lets you into files of bot"""
-    await ctx.send(""">1_D1R3CT0RY_F0UND
-    >D1R3CT0RY:home
-    >US3_cdhome_T0_4CCESS_FILES""")
+    await ctx.send(""">1_DIRECTORY_FOUND
+    >DIRECTORY:home
+    >USE_cdhome_TO_ACCESS_FILES""")
 
 @bot.command(hidden=True)
 async def cdhome(ctx):
     """This command sancs existing folders of bot and let's you access folder"""
-    await ctx.send(""">0N3_D1R3CT0RY_F0UND
+    await ctx.send(""">ONE_DIRECTORY_FOUND
     >File: README.txt
-    >US3_catREADME_T0_V1EW_F1L3_C0NT3NTS""")
+    >USE_catREADME_TO_VIEW_FILE_CONTENTS""")
 
 @bot.command(hidden=True)
 async def catREADME(ctx):
     """This command shows what's inside of file"""
-    await ctx.send("""VI3WING_F1E:README.txt
+    await ctx.send("""VIEWING_File:README.txt
     >Congratz! You found Hacknet Easter egg;
     >The Easter egg code was written by: Gh0st4rt1st a.k.a Gr3ta;
     >Code was edited by: gfrewqpoiu;
@@ -485,7 +474,7 @@ async def listquotes(ctx):
     if result:
         await ctx.send(result)
     else:
-        await ctx.send("I couldn't find any quotes on this server")
+        await ctx.send("I couldn't find any quotes on this server.")
 
 @bot.command(hidden=True, aliases=['eval'])
 async def evaluate(ctx, *, message:str):
