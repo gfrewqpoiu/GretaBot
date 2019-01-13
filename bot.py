@@ -34,7 +34,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.6.1"
+bot_version = "0.6.2"
 main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
@@ -453,8 +453,7 @@ async def tts(ctx):
         await ctx.send("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
         await asyncio.sleep(30)
 
-@bot.command(hidden=True, aliases=['addq'])
-@commands.has_permissions(administrator=True)
+@bot.command(aliases=['addq'])
 async def addquote(ctx, keyword: str, *, quotetext: str):
     """Adds a quote to the database
     Specify the keword in "" if it has spaces in it.
@@ -464,7 +463,7 @@ async def addquote(ctx, keyword: str, *, quotetext: str):
     await ctx.send("I saved the quote.")
 
 @bot.command(hidden=True, aliases=['delq', 'delquote'])
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(manage_messages=True)
 async def deletequote(ctx, keyword: str):
     """Deletes the quote with the given keyword
     If the keyword has spaces in it, it must be quoted like this:
