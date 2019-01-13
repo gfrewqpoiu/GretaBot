@@ -34,7 +34,7 @@ config = checks.getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.6.1"
+bot_version = "0.6.2"
 main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
@@ -62,6 +62,7 @@ async def on_ready():
     print("I am part of the following servers:")
     for guild in bot.guilds:
         print(f"{guild.name}")
+        print(f"{guild.id}")
     print("")
     amount = 0
     for channel in bot.get_all_channels():
@@ -453,8 +454,7 @@ async def tts(ctx):
         await ctx.send("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
         await asyncio.sleep(30)
 
-@bot.command(hidden=True, aliases=['addq'])
-@commands.has_permissions(administrator=True)
+@bot.command(aliases=['addq'])
 async def addquote(ctx, keyword: str, *, quotetext: str):
     """Adds a quote to the database
     Specify the keword in "" if it has spaces in it.
@@ -464,7 +464,7 @@ async def addquote(ctx, keyword: str, *, quotetext: str):
     await ctx.send("I saved the quote.")
 
 @bot.command(hidden=True, aliases=['delq', 'delquote'])
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(manage_messages=True)
 async def deletequote(ctx, keyword: str):
     """Deletes the quote with the given keyword
     If the keyword has spaces in it, it must be quoted like this:
@@ -486,6 +486,26 @@ async def listquotes(ctx):
         await ctx.send(result)
     else:
         await ctx.send("I couldn't find any quotes on this server")
+
+@bot.command(hidden=True, aliases=['eval'])
+async def evaluate(ctx, *, message:str):
+    """Evaluates an arbitrary python expression"""
+    if (ctx.message.author.id != 167311142744489984):
+        await ctx.send(""""This command is only for gfrewqpoiu.
+        It is meant for testing purposes only.""")
+        return
+    embed = discord.Embed()
+    embed.set_author(name="Result")
+    embed.set_footer(text=eval(message))
+    await ctx.send(embed=embed)
+
+@bot.command(hidden=True, aliases=['leaveserver, leave'])
+@commands.is_owner()
+async def leaveguild(ctx, id: int):
+    guild = await bot.get_guild(id)
+    await guild.leave()
+    await ctx.send("I left that Guild.")
+
 try:
     bot.run(loginID, reconnect=True)
 except:
