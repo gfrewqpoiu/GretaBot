@@ -472,7 +472,6 @@ async def deletequote(ctx, keyword: str):
     quote = Quote.get_or_none(Quote.guildId == ctx.guild.id, Quote.keyword == keyword.lower())
     if quote:
         quote.delete_instance()
-        quote.save()
         await ctx.send("The quote was deleted.")
     else:
         await ctx.send("I could not find the quote.")
@@ -491,7 +490,7 @@ async def listquotes(ctx):
 @bot.command(hidden=True, aliases=['eval'])
 async def evaluate(ctx, *, message:str):
     """Evaluates an arbitrary python expression"""
-    if (ctx.author.id != 167311142744489984):
+    if (ctx.message.author.id != 167311142744489984):
         await ctx.send(""""This command is only for gfrewqpoiu.
         It is meant for testing purposes only.""")
         return
