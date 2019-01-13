@@ -84,12 +84,7 @@ async def on_message(message):
     def check(oldmessage):
         text = oldmessage.clean_content.lower()
         agreement = ["yes", "y", "yeah", "ja", "j", "no", "n", "nah", "nein"]
-        #disagreement = ["no", "n", "nah", "nein"]
         return text in agreement and oldmessage.author == message.author and oldmessage.channel == message.channel
-        #elif text in disagreement:
-            #return oldmessage.author == message.author and oldmessage.channel == message.channel, False
-        #else:
-            #return False, False
 
     if message.author.bot:
         return
@@ -122,7 +117,7 @@ async def on_message(message):
         try:
             tripped = await bot.wait_for('message', timeout=15.0, check=check)
         except TimeoutError:
-            tripped = False
+            tripped = None
         #no = await bot.wait_for('message', timeout=15.0, check=nocheck)
         if tripped:
             if inputcheck(tripped.clean_content.lower()):
@@ -131,7 +126,7 @@ async def on_message(message):
                 await channel.send(f"""Oh my love... Then maybe don't ping me, {message.author.mention}? ;/""")
 
         else:
-            pass
+            return
     elif text == "<_>":
         await channel.send(">_<")
     elif text == ">_<":
@@ -146,7 +141,7 @@ async def on_message(message):
         await channel.send("XC")
     elif isinstance(channel, discord.DMChannel):
         if text[0]!=bot.command_prefix and main_channel is not None and channel.recipient.id in [240224846217216000, 167311142744489984]:
-            await main_channel.send(text)
+            await main_channel.send(message.content)
 
     elif channel.id == 529311873330577408:
         if text == "how are you?":
@@ -269,9 +264,10 @@ async def say2(ctx, *, message:str):
     await ctx.send(message)
 
 @bot.command(hidden=True)
-@commands.has_permissions(administrator=True)
 async def setchannel(ctx):
     """Sets the channel for PM messaging"""
+    if ctx.author.id not in [167311142744489984, 240224846217216000]:
+        return
     global main_channel
     main_channel=ctx.channel
     await ctx.message.delete()
