@@ -236,7 +236,7 @@ async def restart(ctx):
 
 
 @bot.command(hidden=True, aliases=['setgame', 'setplaying'])
-@commands.has_permissions(administrator=True)
+@is_owner()
 async def gametitle(ctx, *, message: str):
     """Sets the currently playing status of the bot"""
     if not ctx.author.permissions_in(ctx.message.channel).manage_nicknames:
