@@ -18,7 +18,7 @@ except ImportError:
     pip.main(['install', '--user', '--upgrade', 'https://github.com/Rapptz/discord.py/archive/rewrite.zip'])
     _restart()
 
-import checks
+from checks import *
 import logging
 import subprocess
 import peewee
@@ -30,7 +30,7 @@ db.create_tables([Quote])
 
 logging.basicConfig(level=logging.WARNING)
 
-config = checks.getconf()
+config = getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
@@ -40,7 +40,7 @@ main_channel=None
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'S.A.I.L'), pm_help=True)
 
-bot.owner_id = int(settings.get('Owner ID')) #Overwrites the Botid (which is now by default the token creator) with the config
+bot.owner_id = configOwner[0] #Overwrites the Botid (which is now by default the token creator) with the config
 
 def inputcheck(text) -> bool:
     if text.lower() in ["yes", "y", "yeah", "ja", "j"]:
@@ -68,8 +68,11 @@ async def on_ready():
     for channel in bot.get_all_channels():
         amount += 1
     print(f"I am in {amount} channels")
+    for user in configOwner:
+        print(f"{user} is a Owner of this bot.")
     print('------')
-    #await bot.change_presence(game=discord.Game(name='waiting'))
+    game = discord.Game("waiting")
+    await bot.change_presence(activity=game)
 
 @bot.event
 async def on_guild_join(server):
@@ -140,7 +143,7 @@ async def on_message(message):
     elif text == "XD":
         await channel.send("XC")
     elif isinstance(channel, discord.DMChannel):
-        if text[0]!=bot.command_prefix and main_channel is not None and channel.recipient.id in [240224846217216000, 167311142744489984]:
+        if text[0]!=bot.command_prefix and main_channel is not None and channel.recipient.id in configOwner:
             await main_channel.send(message.content)
 
     elif channel.id == 529311873330577408:
@@ -180,7 +183,7 @@ async def version(ctx):
     await ctx.send(bot_version)
 
 #Utility Commands
-@checks.is_owner()
+@is_owner()
 @bot.command(hidden=True, aliases=['stop'])
 async def shutdown(ctx):
     """Shuts the bot down
@@ -217,7 +220,7 @@ async def update(ctx):
 
 
 @bot.command(hidden=True, aliases=['reboot'])
-@commands.has_permissions(administrator=True)
+@is_owner()
 async def restart(ctx):
     """Restart the bot
     Only works for the bot owner"""
@@ -225,16 +228,16 @@ async def restart(ctx):
     await asyncio.sleep(5)
     print(f"Restarting on request of {ctx.author.name}!")
     db.close()
-    await bot.logout()
     try:
         await bot.close()
+        await bot._connection.clear()
         _restart()
     except:
         pass
 
 
 @bot.command(hidden=True, aliases=['setgame', 'setplaying'])
-@commands.has_permissions(administrator=True)
+@is_owner()
 async def gametitle(ctx, *, message: str):
     """Sets the currently playing status of the bot"""
     if not ctx.author.permissions_in(ctx.message.channel).manage_nicknames:

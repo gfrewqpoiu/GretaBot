@@ -6,13 +6,17 @@ config.read('config.ini')
 
 settings = config['Settings']
 
-configOwner = settings.get('Owner ID')
+
+configOwnerstr = settings.get('Owner ID').split(" ")
+configOwner = []
+for s in configOwnerstr:
+    configOwner.append(int(s))
 
 def getconf():
     return config
 
 def is_owner_check(message):
-    return message.author.id == configOwner
+    return message.author.id in configOwner
 
 def is_owner():
     return commands.check(lambda ctx: is_owner_check(ctx.message))
