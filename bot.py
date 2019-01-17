@@ -5,7 +5,7 @@ import pprint
 def _restart():
     try:
         os.execl(sys.executable, sys.executable, *sys.argv)
-    except:
+    except Exception:
         pass
 
 try:  # These are mandatory.
@@ -229,8 +229,6 @@ async def restart(ctx):
     print(f"Restarting on request of {ctx.author.name}!")
     db.close()
     try:
-        await bot.close()
-        await bot._connection.clear()
         _restart()
     except:
         pass
