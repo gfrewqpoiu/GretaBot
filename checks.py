@@ -15,9 +15,6 @@ for s in configOwnerstr:
 def getconf():
     return config
 
-def is_owner_check(message):
-    return message.author.id in configOwner
-
 def is_in_owners():
     async def predicate(ctx):
         return ctx.author.id in configOwner

@@ -240,9 +240,6 @@ async def restart(ctx):
 @is_in_owners()
 async def gametitle(ctx, *, message: str):
     """Sets the currently playing status of the bot"""
-    if not ctx.author.permissions_in(ctx.message.channel).manage_nicknames:
-        await ctx.send("You don't have permission to do this...")
-        return
     game = discord.Game(message)
     await bot.change_presence(activity=game)
 
