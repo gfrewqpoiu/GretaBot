@@ -5,7 +5,7 @@ import pprint
 def _restart():
     try:
         os.execl(sys.executable, sys.executable, *sys.argv)
-    except:
+    except Exception:
         pass
 
 try:  # These are mandatory.
@@ -229,8 +229,6 @@ async def restart(ctx):
     print(f"Restarting on request of {ctx.author.name}!")
     db.close()
     try:
-        await bot.close()
-        await bot._connection.clear()
         _restart()
     except:
         pass
@@ -487,6 +485,30 @@ async def leaveguild(ctx, id: int):
     guild = bot.get_guild(id)
     await guild.leave()
     await ctx.send("I left that Guild.")
+
+@bot.command(hidden=False)
+async def glitch(ctx):
+    "The second Easter Egg"
+    await ctx.send("""Who created Walkers Join book?
+    a ME;
+    b FART;
+    c Caro and Helryon;
+    Type answer as ``.letter``""")
+
+@bot.command(hidden=True)
+async def c(ctx):
+    "Answer"
+    await ctx.send("Correct, Walkers Join book was created by Caro and Helryon")
+
+@bot.command(hidden=True)
+async def a(ctx):
+    "Answer"
+    await ctx.send("Wrong...")
+
+@bot.command(hidden=True)
+async def b(ctx):
+    "Answer"
+    await ctx.send("Wrong...")
 
 try:
     bot.run(loginID, reconnect=True)
