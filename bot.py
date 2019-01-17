@@ -34,7 +34,7 @@ config = getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.6.2"
+bot_version = "0.6.3"
 main_channel=None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
@@ -183,7 +183,7 @@ async def version(ctx):
     await ctx.send(bot_version)
 
 #Utility Commands
-@is_owner()
+@is_in_owners()
 @bot.command(hidden=True, aliases=['stop'])
 async def shutdown(ctx):
     """Shuts the bot down
@@ -201,7 +201,7 @@ async def shutdown(ctx):
 
 
 @bot.command(hidden=True)
-@commands.has_permissions(administrator=True)
+@is_in_owners()
 async def update(ctx):
     """Updates the bot with the newest Version from GitHub
         Only works for the bot owner"""
@@ -220,7 +220,7 @@ async def update(ctx):
 
 
 @bot.command(hidden=True, aliases=['reboot'])
-@is_owner()
+@is_in_owners()
 async def restart(ctx):
     """Restart the bot
     Only works for the bot owner"""
@@ -237,7 +237,7 @@ async def restart(ctx):
 
 
 @bot.command(hidden=True, aliases=['setgame', 'setplaying'])
-@is_owner()
+@is_in_owners()
 async def gametitle(ctx, *, message: str):
     """Sets the currently playing status of the bot"""
     if not ctx.author.permissions_in(ctx.message.channel).manage_nicknames:
@@ -260,23 +260,20 @@ async def say(ctx, *, message:str):
     await ctx.send(message)
 
 @bot.command(hidden=True)
-@commands.has_permissions(administrator=True)
+@commands.has_permissions(manage_messages=True)
 async def say2(ctx, *, message:str):
     """Repeats what you said and removes it"""
     await ctx.message.delete()
     await ctx.send(message)
 
 @bot.command(hidden=True)
+@is_in_owners()
 async def setchannel(ctx):
     """Sets the channel for PM messaging"""
-    if ctx.author.id not in [167311142744489984, 240224846217216000]:
-        return
     global main_channel
     main_channel=ctx.channel
     await ctx.message.delete()
     await ctx.send("Set the default channel to this channel.")
-
-
 
 @bot.command()
 @commands.has_permissions(kick_members=True)
@@ -488,7 +485,7 @@ async def evaluate(ctx, *, message:str):
     await ctx.send(embed=embed)
 
 @bot.command(hidden=True, aliases=['leaveserver, leave'])
-@commands.is_owner()
+@is_in_owners()
 async def leaveguild(ctx, id: int):
     guild = bot.get_guild(id)
     await guild.leave()

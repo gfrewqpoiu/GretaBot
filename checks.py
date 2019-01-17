@@ -18,11 +18,11 @@ def getconf():
 def is_owner_check(message):
     return message.author.id in configOwner
 
-def is_owner():
+def is_in_owners():
     return commands.check(lambda ctx: is_owner_check(ctx.message))
 
 def is_admin_check(message):
-    if is_owner():
+    if is_in_owners():
         return True
     return message.author.permissions_in(message.channel).administrator
 
