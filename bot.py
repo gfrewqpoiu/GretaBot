@@ -71,7 +71,8 @@ async def on_ready():
     for user in configOwner:
         print(f"{user} is a Owner of this bot.")
     print('------')
-    #await bot.change_presence(game=discord.Game(name='waiting'))
+    game = discord.Game("waiting")
+    await bot.change_presence(activity=game)
 
 @bot.event
 async def on_guild_join(server):
