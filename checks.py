@@ -19,7 +19,9 @@ def is_owner_check(message):
     return message.author.id in configOwner
 
 def is_in_owners():
-    return commands.check(lambda ctx: is_owner_check(ctx.message))
+    async def predicate(ctx):
+        return ctx.author.id in configOwner
+    return commands.check(predicate)
 
 def is_admin_check(message):
     if is_in_owners():
