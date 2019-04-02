@@ -123,7 +123,9 @@ async def on_message(message):
             tripped = None
         #no = await bot.wait_for('message', timeout=15.0, check=nocheck)
         if tripped:
-            if inputcheck(tripped.clean_content.lower()):
+            if inputcheck(tripped.clean_content.lower()) == None:
+                return
+            elif inputcheck(tripped.clean_content.lower()):
                 await channel.send(f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
             elif inputcheck(tripped.clean_content.lower()) == False:
                 await channel.send(f"""Oh my love... Then maybe don't ping me, {message.author.mention}? ;/""")
