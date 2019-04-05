@@ -1,4 +1,4 @@
-discord.py[voice]>=0.16.6
+https://github.com/Rapptz/discord.py/archive/rewrite.zip
 requests
 pyrandom
 google-api-python-client
