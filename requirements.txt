@@ -1,5 +1,0 @@
-discord.py-rw
-requests
-pyrandom
-google-api-python-client
-peewee
