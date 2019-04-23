@@ -10,7 +10,7 @@ requests = {extras = ["security"],version = "*"}
 peewee = "*"
 pyrandom = "*"
 google-api-python-client = "*"
-discord-py-rw = "==1.0.0a0.post2"
+discord-py = "*"
 
 [requires]
 python_version = "3.7"
