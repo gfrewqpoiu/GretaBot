@@ -2,27 +2,31 @@
 import sys
 import os
 import pprint
-def _restart():
-    try:
-        os.execl(sys.executable, sys.executable, *sys.argv)
-    except Exception:
-        pass
+from checks import *
+import logging
+import subprocess
+from typing import Optional, List, Union, Any, Tuple
+
 
 try:  # These are mandatory.
     import discord
     from discord.ext import commands
     from discord import utils
     import asyncio
+    from loguru import logger
+    import peewee
 except ImportError:
-    import pip
-    pip.main(['install', '--user', '--upgrade', 'https://github.com/Rapptz/discord.py/archive/rewrite.zip'])
-    _restart()
+    raise ImportError("You have some dependencies missing, please install them with pipenv install --deploy")
 
-from checks import *
-import logging
-import subprocess
-import peewee
 from database import *
+
+
+def _restart():
+    try:
+        os.execl(sys.executable, sys.executable, *sys.argv)
+    except Exception:
+        pass
+
 
 db.connect()
 db.create_tables([Quote])
@@ -34,15 +38,14 @@ config = getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.6.3"
-main_channel=None
+bot_version = "0.7.0"
+main_channel = None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'S.A.I.L'), pm_help=True)
 
-bot.owner_id = configOwner[0] #Overwrites the Botid (which is now by default the token creator) with the config
 
-def inputcheck(text) -> bool:
+def input_to_bool(text: str) -> Optional[bool]:
     if text.lower() in ["yes", "y", "yeah", "ja", "j"]:
         return True
     elif text.lower() in ["no", "n", "nah", "nein"]:
@@ -50,16 +53,17 @@ def inputcheck(text) -> bool:
     else:
         return None
 
+
 @bot.event
 async def on_ready():
-    print('Logged in as')
-    print(bot.user.name)
-    print(bot.user.id)
-    print(f"The bot prefix is {bot.command_prefix}")
-    print(f"Using Bot Version: {bot_version}")
-    print('------')
+    logger.info('Logged in as')
+    logger.info(bot.user.name)
+    logger.info(bot.user.id)
+    logger.info(f"The bot prefix is {bot.command_prefix}")
+    logger.info(f"Using Bot Version: {bot_version}")
+    logger.info('------')
     print("")
-    print("I am part of the following servers:")
+    logger.info("I am part of the following servers:")
     for guild in bot.guilds:
         print(f"{guild.name}")
         print(f"{guild.id}")
@@ -67,20 +71,23 @@ async def on_ready():
     amount = 0
     for channel in bot.get_all_channels():
         amount += 1
-    print(f"I am in {amount} channels")
+    logger.info(f"I am in {amount} channels")
     for user in configOwner:
-        print(f"{user} is a Owner of this bot.")
-    print('------')
+        logger.info(f"{user} is a Owner of this bot.")
+    logger.info('------')
     game = discord.Game("waiting")
     await bot.change_presence(activity=game)
 
+
 @bot.event
 async def on_guild_join(server):
-    print(f"I just joined the server {server.name} with the ID {server.id}")
+    logger.success(f"I just joined the server {server.name} with the ID {server.id}")
+
 
 @bot.event
 async def on_guild_remove(server):
-    print(f"I left the server {server.name} with the ID {server.id}")
+    logger.warning(f"I left the server {server.name} with the ID {server.id}")
+
 
 @bot.event
 async def on_message(message):
@@ -102,7 +109,6 @@ async def on_message(message):
             await channel.send(quote.result)
             return
 
-
     if text == "/o/":
         await channel.send("\o\\")
     elif text == "\o\\":
@@ -121,11 +127,13 @@ async def on_message(message):
             tripped = await bot.wait_for('message', timeout=15.0, check=check)
         except TimeoutError:
             tripped = None
-        #no = await bot.wait_for('message', timeout=15.0, check=nocheck)
+        # no = await bot.wait_for('message', timeout=15.0, check=nocheck)
         if tripped:
-            if inputcheck(tripped.clean_content.lower()):
+            if input_to_bool(tripped.clean_content.lower()) == None:
+                return
+            elif input_to_bool(tripped.clean_content.lower()):
                 await channel.send(f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
-            elif inputcheck(tripped.clean_content.lower()) == False:
+            elif input_to_bool(tripped.clean_content.lower()) == False:
                 await channel.send(f"""Oh my love... Then maybe don't ping me, {message.author.mention}? ;/""")
 
         else:
@@ -164,9 +172,11 @@ async def on_message(message):
     else:
         await bot.process_commands(message)
 
+
 @bot.command(hidden=True)
 async def invite(ctx):
     await ctx.send(f"https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot&permissions=8")
+
 
 @bot.event
 async def on_reaction(reaction, user):
@@ -177,12 +187,14 @@ async def on_reaction(reaction, user):
     # else:
     #    await bot.process_commands(message)
 
+
 @bot.command(hidden=True)
 async def version(ctx):
     """Gives back the bot version"""
     await ctx.send(bot_version)
 
-#Utility Commands
+
+# Utility Commands
 @is_in_owners()
 @bot.command(hidden=True, aliases=['stop'])
 async def shutdown(ctx):
@@ -190,14 +202,13 @@ async def shutdown(ctx):
     Only works for the bot owner"""
     await ctx.send("Shutting down!", delete_after=3)
     await asyncio.sleep(5)
-    print(f"Shutting down on request of {ctx.author.name}!")
+    logger.warning(f"Shutting down on request of {ctx.author.name}!")
     db.close()
     try:
         await bot.close()
         sys.exit()
     except:
         pass
-
 
 
 @bot.command(hidden=True)
@@ -218,7 +229,6 @@ async def update(ctx):
         await ctx.send("That didn't work for some reason...")
 
 
-
 @bot.command(hidden=True, aliases=['reboot'])
 @is_in_owners()
 async def restart(ctx):
@@ -226,7 +236,7 @@ async def restart(ctx):
     Only works for the bot owner"""
     await ctx.send("Restarting", delete_after=3)
     await asyncio.sleep(5)
-    print(f"Restarting on request of {ctx.author.name}!")
+    logger.warning(f"Restarting on request of {ctx.author.name}!")
     db.close()
     try:
         _restart()
@@ -254,12 +264,14 @@ async def say(ctx, *, message:str):
     """Repeats what you said"""
     await ctx.send(message)
 
+
 @bot.command(hidden=True)
 @commands.has_permissions(manage_messages=True)
 async def say2(ctx, *, message:str):
     """Repeats what you said and removes it"""
     await ctx.message.delete()
     await ctx.send(message)
+
 
 @bot.command(hidden=True)
 @is_in_owners()
@@ -269,6 +281,7 @@ async def setchannel(ctx):
     main_channel=ctx.channel
     await ctx.message.delete()
     await ctx.send("Set the default channel to this channel.")
+
 
 @bot.command()
 @commands.has_permissions(kick_members=True)
@@ -339,16 +352,19 @@ async def tf2(ctx):
     """Funny Video"""
     await ctx.send("https://www.youtube.com/watch?v=r-u4rA_yZTA")
 
+
 @bot.command(hidden=False)
 async def an(ctx):
     """A command giving link to A->N website"""
     await ctx.send(""">R3DACT3D
     >L1NK_R3M0V3D? = yes""")
 
+
 @bot.command(hidden=False)
 async def walkersjoin(ctx):
     """A link to 24/7 Walker's Radio on youtube"""
     await ctx.send("https://www.youtube.com/watch?v=ruOlyWdUMSw")
+
 
 @bot.command()
 async def changes(ctx):
@@ -367,10 +383,12 @@ async def changes(ctx):
     *~change - updates command showing what was added/removed from bot;
     *~Special reaction w/ user tag.""")
 
+
 @bot.command()
 async def upcoming(ctx):
     """Previews upcoming plans if there are any"""
     await ctx.send("""This is upcoming:```All secret.```""")
+
 
 @bot.command(hidden=True)
 async def FreeNitro(ctx):
@@ -380,11 +398,13 @@ async def FreeNitro(ctx):
     <https://is.gd/GetFreeNitro>
     >YOURS: Gh0st4rt1st_x0x0""")
 
+
 @bot.command(hidden=False)
 async def probe(ctx):
     """Use this command to check for open ports (ps. this is first step command of Easter egg)"""
     await ctx.send(""">1_OPEN_PORT_HAD_BEEN_FOUND
     >USE_ssh_TO_CRACK_IT""")
+
 
 @bot.command(hidden=True)
 async def ssh(ctx):
@@ -392,11 +412,13 @@ async def ssh(ctx):
     await ctx.send(""">CRACKING_SUCCESSFUL
     >USE_porthack_TO_GAIN_ACCESS""")
 
+
 @bot.command(hidden=True)
 async def porthack(ctx):
     """This command lets you inside"""
     await ctx.send(""">HACK_SUCCESSFUL
     >USE_ls_TO_ACCESS_FILES""")
+
 
 @bot.command(hidden=True)
 async def ls(ctx):
@@ -405,12 +427,14 @@ async def ls(ctx):
     >DIRECTORY:home
     >USE_cdhome_TO_ACCESS_FILES""")
 
+
 @bot.command(hidden=True)
 async def cdhome(ctx):
     """This command sancs existing folders of bot and let's you access folder"""
     await ctx.send(""">ONE_DIRECTORY_FOUND
     >File: README.txt
     >USE_catREADME_TO_VIEW_FILE_CONTENTS""")
+
 
 @bot.command(hidden=True)
 async def catREADME(ctx):
@@ -422,17 +446,20 @@ async def catREADME(ctx):
     >The Easter egg code is based on Hacknet game;
     >Have a nice day! *Gh0st4rt1st* *x0x0* """)
 
+
 @bot.command(hidden=True)
 async def annoyeveryone(ctx):
     for i in range(10):
             await ctx.send("Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",  tts=True)
             await asyncio.sleep(30)
-            
+
+
 @bot.command(hidden=True)
 async def tts(ctx):
     for i in range(10):
         await ctx.send("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
         await asyncio.sleep(30)
+
 
 @bot.command(aliases=['addq'])
 async def addquote(ctx, keyword: str, *, quotetext: str):
@@ -442,6 +469,7 @@ async def addquote(ctx, keyword: str, *, quotetext: str):
     quote = Quote(guildId=ctx.message.guild.id, keyword=keyword.lower(), result=quotetext, authorId=ctx.author.id)
     quote.save()
     await ctx.send("I saved the quote.")
+
 
 @bot.command(hidden=True, aliases=['delq', 'delquote'])
 @commands.has_permissions(manage_messages=True)
@@ -456,6 +484,7 @@ async def deletequote(ctx, keyword: str):
     else:
         await ctx.send("I could not find the quote.")
 
+
 @bot.command(aliases=['liqu'])
 async def listquotes(ctx):
     """Lists all quotes on the current server"""
@@ -466,6 +495,7 @@ async def listquotes(ctx):
         await ctx.send(result)
     else:
         await ctx.send("I couldn't find any quotes on this server.")
+
 
 @bot.command(hidden=True, aliases=['eval'])
 async def evaluate(ctx, *, message:str):
@@ -479,12 +509,14 @@ async def evaluate(ctx, *, message:str):
     embed.set_footer(text=eval(message))
     await ctx.send(embed=embed)
 
+
 @bot.command(hidden=True, aliases=['leaveserver, leave'])
 @is_in_owners()
 async def leaveguild(ctx, id: int):
     guild = bot.get_guild(id)
     await guild.leave()
     await ctx.send("I left that Guild.")
+
 
 @bot.command(hidden=False)
 async def glitch(ctx):
@@ -495,15 +527,18 @@ async def glitch(ctx):
     c Caro and Helryon;
     Type answer as ``.letter``""")
 
+
 @bot.command(hidden=True)
 async def c(ctx):
     "Answer"
     await ctx.send("Correct, Walkers Join book was created by Caro and Helryon")
 
+
 @bot.command(hidden=True)
 async def a(ctx):
     "Answer"
     await ctx.send("Wrong...")
+
 
 @bot.command(hidden=True)
 async def b(ctx):
