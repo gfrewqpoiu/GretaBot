@@ -5,7 +5,7 @@ import pprint
 from checks import *
 import logging
 import subprocess
-
+from typing import Optional, List, Union, Any, Tuple
 
 
 try:  # These are mandatory.
@@ -38,16 +38,14 @@ config = getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.6.3"
-main_channel=None
+bot_version = "0.7.0"
+main_channel = None
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'S.A.I.L'), pm_help=True)
 
-bot.owner_id = configOwner[0] #Overwrites the Botid (which is now by default the token creator) with the config
 
-
-def inputcheck(text) -> bool:
+def input_to_bool(text: str) -> Optional[bool]:
     if text.lower() in ["yes", "y", "yeah", "ja", "j"]:
         return True
     elif text.lower() in ["no", "n", "nah", "nein"]:
@@ -58,14 +56,14 @@ def inputcheck(text) -> bool:
 
 @bot.event
 async def on_ready():
-    print('Logged in as')
-    print(bot.user.name)
-    print(bot.user.id)
-    print(f"The bot prefix is {bot.command_prefix}")
-    print(f"Using Bot Version: {bot_version}")
-    print('------')
+    logger.info('Logged in as')
+    logger.info(bot.user.name)
+    logger.info(bot.user.id)
+    logger.info(f"The bot prefix is {bot.command_prefix}")
+    logger.info(f"Using Bot Version: {bot_version}")
+    logger.info('------')
     print("")
-    print("I am part of the following servers:")
+    logger.info("I am part of the following servers:")
     for guild in bot.guilds:
         print(f"{guild.name}")
         print(f"{guild.id}")
@@ -73,22 +71,22 @@ async def on_ready():
     amount = 0
     for channel in bot.get_all_channels():
         amount += 1
-    print(f"I am in {amount} channels")
+    logger.info(f"I am in {amount} channels")
     for user in configOwner:
-        print(f"{user} is a Owner of this bot.")
-    print('------')
+        logger.info(f"{user} is a Owner of this bot.")
+    logger.info('------')
     game = discord.Game("waiting")
     await bot.change_presence(activity=game)
 
 
 @bot.event
 async def on_guild_join(server):
-    print(f"I just joined the server {server.name} with the ID {server.id}")
+    logger.success(f"I just joined the server {server.name} with the ID {server.id}")
 
 
 @bot.event
 async def on_guild_remove(server):
-    print(f"I left the server {server.name} with the ID {server.id}")
+    logger.warning(f"I left the server {server.name} with the ID {server.id}")
 
 
 @bot.event
@@ -131,11 +129,11 @@ async def on_message(message):
             tripped = None
         # no = await bot.wait_for('message', timeout=15.0, check=nocheck)
         if tripped:
-            if inputcheck(tripped.clean_content.lower()) == None:
+            if input_to_bool(tripped.clean_content.lower()) == None:
                 return
-            elif inputcheck(tripped.clean_content.lower()):
+            elif input_to_bool(tripped.clean_content.lower()):
                 await channel.send(f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
-            elif inputcheck(tripped.clean_content.lower()) == False:
+            elif input_to_bool(tripped.clean_content.lower()) == False:
                 await channel.send(f"""Oh my love... Then maybe don't ping me, {message.author.mention}? ;/""")
 
         else:
@@ -204,7 +202,7 @@ async def shutdown(ctx):
     Only works for the bot owner"""
     await ctx.send("Shutting down!", delete_after=3)
     await asyncio.sleep(5)
-    print(f"Shutting down on request of {ctx.author.name}!")
+    logger.warning(f"Shutting down on request of {ctx.author.name}!")
     db.close()
     try:
         await bot.close()
@@ -238,7 +236,7 @@ async def restart(ctx):
     Only works for the bot owner"""
     await ctx.send("Restarting", delete_after=3)
     await asyncio.sleep(5)
-    print(f"Restarting on request of {ctx.author.name}!")
+    logger.warning(f"Restarting on request of {ctx.author.name}!")
     db.close()
     try:
         _restart()
