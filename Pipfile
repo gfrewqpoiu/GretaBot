@@ -4,16 +4,18 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+ipython = "*"
+trio-typing = "*"
+mypy = "*"
 
 [packages]
-requests = {extras = ["security"],version = "*"}
 peewee = "*"
-pyrandom = "*"
-google-api-python-client = "*"
-discord-py = "*"
+discord-py = {extras = ["voice"], version = "*"}
 loguru = "*"
 trio = "*"
 httpx = "*"
+cchardet = "*"
+sniffio = "*"
 
 [requires]
 python_version = "3.9"

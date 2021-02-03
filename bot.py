@@ -62,12 +62,12 @@ async def on_ready():
     logger.info(f"The bot prefix is {bot.command_prefix}")
     logger.info(f"Using Bot Version: {bot_version}")
     logger.info('------')
-    print("")
+    logger.info("")
     logger.info("I am part of the following servers:")
     for guild in bot.guilds:
-        print(f"{guild.name}")
-        print(f"{guild.id}")
-    print("")
+        logger.info(f"{guild.name}")
+        logger.info(f"{guild.id}")
+    logger.info("")
     amount = 0
     for channel in bot.get_all_channels():
         amount += 1
@@ -129,11 +129,11 @@ async def on_message(message):
             tripped = None
         # no = await bot.wait_for('message', timeout=15.0, check=nocheck)
         if tripped:
-            if input_to_bool(tripped.clean_content.lower()) == None:
+            if input_to_bool(tripped.clean_content.lower()) is None:
                 return
             elif input_to_bool(tripped.clean_content.lower()):
                 await channel.send(f"Okay use the {bot.command_prefix}help command to get a list of my commands!")
-            elif input_to_bool(tripped.clean_content.lower()) == False:
+            elif not input_to_bool(tripped.clean_content.lower()):
                 await channel.send(f"""Oh my love... Then maybe don't ping me, {message.author.mention}? ;/""")
 
         else:
@@ -151,7 +151,7 @@ async def on_message(message):
     elif text == "XD":
         await channel.send("XC")
     elif isinstance(channel, discord.DMChannel):
-        if text[0]!=bot.command_prefix and main_channel is not None and channel.recipient.id in configOwner:
+        if text[0] != bot.command_prefix and main_channel is not None and channel.recipient.id in configOwner:
             await main_channel.send(message.content)
 
     elif channel.id == 529311873330577408:
@@ -207,8 +207,8 @@ async def shutdown(ctx):
     try:
         await bot.close()
         sys.exit()
-    except:
-        pass
+    except Exception:
+        sys.exit(1)
 
 
 @bot.command(hidden=True)
@@ -547,7 +547,8 @@ async def b(ctx):
 
 try:
     bot.run(loginID, reconnect=True)
-except:
+except Exception as e:
+    logger.error(e)
     raise ValueError(
         "Couldn't log in with the given credentials, please check those in config.ini"
         " and your connection and try again!")
