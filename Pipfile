@@ -16,6 +16,7 @@ trio = "*"
 httpx = "*"
 cchardet = "*"
 sniffio = "*"
+trio-asyncio = "*"
 
 [requires]
 python_version = "3.9"
