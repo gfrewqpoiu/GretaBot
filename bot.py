@@ -430,7 +430,7 @@ async def ls(ctx):
 
 @bot.command(hidden=True)
 async def cdhome(ctx):
-    """This command sancs existing folders of bot and let's you access folder"""
+    """This command scans existing folders of bot and let's you access folder"""
     await ctx.send(""">ONE_DIRECTORY_FOUND
     >File: README.txt
     >USE_catREADME_TO_VIEW_FILE_CONTENTS""")
@@ -450,8 +450,8 @@ async def catREADME(ctx):
 @bot.command(hidden=True)
 async def annoyeveryone(ctx):
     for i in range(10):
-            await ctx.send("Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",  tts=True)
-            await asyncio.sleep(30)
+        await ctx.send("Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",  tts=True)
+        await asyncio.sleep(30)
 
 
 @bot.command(hidden=True)
