@@ -18,10 +18,11 @@ try:  # These are mandatory.
 except ImportError:
     raise ImportError("You have some dependencies missing, please install them with pipenv install --deploy")
 
-from database import *
+from database import db, Quote
+from loguru_intercept import InterceptHandler
 
 
-def _restart():
+def _restart() -> None:
     try:
         os.execl(sys.executable, sys.executable, *sys.argv)
     except Exception:
@@ -32,14 +33,22 @@ db.connect()
 db.create_tables([Quote])
 
 
-logging.basicConfig(level=logging.WARNING)
+log = logging.getLogger('discord')
+log.setLevel(logging.DEBUG)
+log.addHandler(InterceptHandler())
 
 config = getconf()
 login = config['Login']
 settings = config['Settings']
 loginID = login.get('Login Token')
-bot_version = "0.7.0"
+if not settings.getboolean('Debugging', fallback=False):
+    log.setLevel(logging.INFO)
+bot_version = "0.7.1"
 main_channel = None
+intents = discord.Intents.default()
+intents.typing = False
+intents.presences = True
+intents.members = True
 
 bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
                    description=settings.get('Bot Description', 'S.A.I.L'), pm_help=True)
@@ -68,10 +77,10 @@ async def on_ready():
         logger.info(f"{guild.name}")
         logger.info(f"{guild.id}")
     logger.info("")
-    amount = 0
-    for channel in bot.get_all_channels():
-        amount += 1
-    logger.info(f"I am in {amount} channels")
+    # amount = 0
+    # for channel in bot.get_all_channels():
+    #     amount += 1
+    # logger.info(f"I am in {amount} channels")
     for user in configOwner:
         logger.info(f"{user} is a Owner of this bot.")
     logger.info('------')
