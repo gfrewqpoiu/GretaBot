@@ -5,7 +5,9 @@ import pprint
 from checks import *
 import logging
 import subprocess
-from typing import Optional, List, Union, Any, Tuple
+import warnings
+from typing import Optional, List, Union, Any, Tuple, Callable
+from functools import partial
 
 
 try:  # These are mandatory.
@@ -15,6 +17,8 @@ try:  # These are mandatory.
     import asyncio
     from loguru import logger
     import peewee
+    import trio_asyncio
+    import trio
 except ImportError:
     raise ImportError("You have some dependencies missing, please install them with pipenv install --deploy")
 
@@ -50,8 +54,16 @@ intents.typing = False
 intents.presences = True
 intents.members = True
 
-bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
-                   description=settings.get('Bot Description', 'S.A.I.L'), pm_help=True)
+# warnings.simplefilter('ignore', category=trio_asyncio.TrioAsyncioDeprecationWarning)
+# This will initialize a asyncio loop, this is supported for now, but deprecated.
+bot: Optional[commands.Bot] = None
+
+# Some shorthands for easier access.
+aio_as_trio = trio_asyncio.aio_as_trio
+trio_as_aio = trio_asyncio.trio_as_aio
+
+all_commands = []
+all_events: List[Callable] = []
 
 
 def input_to_bool(text: str) -> Optional[bool]:
@@ -63,8 +75,13 @@ def input_to_bool(text: str) -> Optional[bool]:
         return None
 
 
-@bot.event
-async def on_ready():
+async def set_status_text(message: str) -> None:
+    assert bot is not None
+    game = discord.Game(message)
+    await bot.change_presence(activity=game)
+
+
+def log_startup():
     logger.info('Logged in as')
     logger.info(bot.user.name)
     logger.info(bot.user.id)
@@ -84,21 +101,37 @@ async def on_ready():
     for user in configOwner:
         logger.info(f"{user} is a Owner of this bot.")
     logger.info('------')
-    game = discord.Game("waiting")
-    await bot.change_presence(activity=game)
 
 
-@bot.event
+@trio_as_aio
+async def on_ready_trio():
+    async with trio.open_nursery() as nursery:
+        nursery.start_soon(trio.to_thread.run_sync, log_startup)
+        nursery.start_soon(aio_as_trio(partial(set_status_text, "waiting")))
+    logger.debug("Done with setup in trio.")
+
+
+async def on_ready():
+    await on_ready_trio()
+    logger.debug("Done with bot setup.")
+
+
+all_events.append(on_ready)
+
+
 async def on_guild_join(server):
     logger.success(f"I just joined the server {server.name} with the ID {server.id}")
 
 
-@bot.event
+all_events.append(on_guild_join)
+
+
 async def on_guild_remove(server):
     logger.warning(f"I left the server {server.name} with the ID {server.id}")
 
+all_events.append(on_guild_remove)
 
-@bot.event
+
 async def on_message(message):
     def check(oldmessage):
         text = oldmessage.clean_content.lower()
@@ -182,12 +215,16 @@ async def on_message(message):
         await bot.process_commands(message)
 
 
-@bot.command(hidden=True)
+all_events.append(on_message)
+
+
+@commands.command(hidden=True)
 async def invite(ctx):
     await ctx.send(f"https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot&permissions=8")
 
+all_commands.append(invite)
 
-@bot.event
+
 async def on_reaction(reaction, user):
     pass
     # if reaction == ":star:":
@@ -197,15 +234,21 @@ async def on_reaction(reaction, user):
     #    await bot.process_commands(message)
 
 
-@bot.command(hidden=True)
+all_events.append(on_reaction)
+
+
+@commands.command(hidden=True)
 async def version(ctx):
     """Gives back the bot version"""
     await ctx.send(bot_version)
 
 
+all_commands.append(version)
+
+
 # Utility Commands
 @is_in_owners()
-@bot.command(hidden=True, aliases=['stop'])
+@commands.command(hidden=True, aliases=['stop'])
 async def shutdown(ctx):
     """Shuts the bot down
     Only works for the bot owner"""
@@ -220,7 +263,10 @@ async def shutdown(ctx):
         sys.exit(1)
 
 
-@bot.command(hidden=True)
+all_commands.append(shutdown)
+
+
+@commands.command(hidden=True)
 @is_in_owners()
 async def update(ctx):
     """Updates the bot with the newest Version from GitHub
@@ -237,8 +283,10 @@ async def update(ctx):
     except:
         await ctx.send("That didn't work for some reason...")
 
+all_commands.append(update)
 
-@bot.command(hidden=True, aliases=['reboot'])
+
+@commands.command(hidden=True, aliases=['reboot'])
 @is_in_owners()
 async def restart(ctx):
     """Restart the bot
@@ -253,7 +301,10 @@ async def restart(ctx):
         pass
 
 
-@bot.command(hidden=True, aliases=['setgame', 'setplaying'])
+all_commands.append(restart)
+
+
+@commands.command(hidden=True, aliases=['setgame', 'setplaying'])
 @is_in_owners()
 async def gametitle(ctx, *, message: str):
     """Sets the currently playing status of the bot"""
@@ -261,43 +312,58 @@ async def gametitle(ctx, *, message: str):
     await bot.change_presence(activity=game)
 
 
-@bot.command()
+all_commands.append(gametitle)
+
+
+@commands.command()
 async def ping(ctx):
     """Checks the ping of the bot"""
     m = await ctx.send("Ping?")
     await m.edit(f"Pong, Latency is {m.timestamp - ctx.message.timestamp}.")
 
 
-@bot.command(hidden=True)
-async def say(ctx, *, message:str):
+all_commands.append(ping)
+
+
+@commands.command(hidden=True)
+async def say(ctx, *, message: str):
     """Repeats what you said"""
     await ctx.send(message)
 
 
-@bot.command(hidden=True)
+all_commands.append(say)
+
+
+@commands.command(hidden=True)
 @commands.has_permissions(manage_messages=True)
-async def say2(ctx, *, message:str):
+async def say2(ctx, *, message: str):
     """Repeats what you said and removes it"""
     await ctx.message.delete()
     await ctx.send(message)
 
 
-@bot.command(hidden=True)
+all_commands.append(say2)
+
+
+@commands.command(hidden=True)
 @is_in_owners()
 async def setchannel(ctx):
     """Sets the channel for PM messaging"""
     global main_channel
-    main_channel=ctx.channel
+    main_channel = ctx.channel
     await ctx.message.delete()
     await ctx.send("Set the default channel to this channel.")
 
 
-@bot.command()
+all_commands.append(setchannel)
+
+
+@commands.command()
 @commands.has_permissions(kick_members=True)
 async def kick(ctx):
     """Kicks the specified User"""
     user = ctx.message.mentions[0]
-    if user==None:
+    if user is None:
         await ctx.send("No user was specified.")
         return
     try:
@@ -307,12 +373,15 @@ async def kick(ctx):
         await ctx.send("I couldn't kick that user.")
 
 
-@bot.command()
+all_commands.append(kick)
+
+
+@commands.command()
 @commands.has_permissions(ban_members=True)
 async def ban(ctx):
     """Bans the specified User"""
     user = ctx.message.mentions[0]
-    if user == None:
+    if user is None:
         await ctx.send("No user was specified.")
         return
     try:
@@ -322,7 +391,10 @@ async def ban(ctx):
         await ctx.send("I couldn't ban that user.")
 
 
-@bot.command()
+all_commands.append(ban)
+
+
+@commands.command()
 async def info(ctx):
     """Gives some info about the bot"""
     message = f"""📢
@@ -346,7 +418,10 @@ async def info(ctx):
     await ctx.send(message)
 
 
-@bot.command(aliases=['prune', 'delmsgs'])
+all_commands.append(info)
+
+
+@commands.command(aliases=['prune', 'delmsgs'])
 @commands.has_permissions(manage_messages=True)
 async def purge(ctx, amount: int):
     """Removes the given amount of messages from the given channel."""
@@ -356,26 +431,38 @@ async def purge(ctx, amount: int):
         await ctx.send("I couldn't do that because of missing permissions...")
 
 
-@bot.command(hidden=False)
+all_commands.append(purge)
+
+
+@commands.command(hidden=False)
 async def tf2(ctx):
     """Funny Video"""
     await ctx.send("https://www.youtube.com/watch?v=r-u4rA_yZTA")
 
 
-@bot.command(hidden=False)
+all_commands.append(tf2)
+
+
+@commands.command(hidden=False)
 async def an(ctx):
     """A command giving link to A->N website"""
     await ctx.send(""">R3DACT3D
     >L1NK_R3M0V3D? = yes""")
 
 
-@bot.command(hidden=False)
+all_commands.append(an)
+
+
+@commands.command(hidden=False)
 async def walkersjoin(ctx):
     """A link to 24/7 Walker's Radio on youtube"""
     await ctx.send("https://www.youtube.com/watch?v=ruOlyWdUMSw")
 
 
-@bot.command()
+all_commands.append(walkersjoin)
+
+
+@commands.command()
 async def changes(ctx):
     """A command to show what has been added and/or removed from bot"""
     await ctx.send("""The changes:
@@ -393,13 +480,19 @@ async def changes(ctx):
     *~Special reaction w/ user tag.""")
 
 
-@bot.command()
+all_commands.append(changes)
+
+
+@commands.command()
 async def upcoming(ctx):
     """Previews upcoming plans if there are any"""
     await ctx.send("""This is upcoming:```All secret.```""")
 
 
-@bot.command(hidden=True)
+all_commands.append(upcoming)
+
+
+@commands.command(hidden=True)
 async def FreeNitro(ctx):
     """Free Discord Nitro"""
     await ctx.send(f"""{ctx.author.mention} >HAPPY_EASTER
@@ -408,28 +501,40 @@ async def FreeNitro(ctx):
     >YOURS: Gh0st4rt1st_x0x0""")
 
 
-@bot.command(hidden=False)
+all_commands.append(FreeNitro)
+
+
+@commands.command(hidden=False)
 async def probe(ctx):
     """Use this command to check for open ports (ps. this is first step command of Easter egg)"""
     await ctx.send(""">1_OPEN_PORT_HAD_BEEN_FOUND
     >USE_ssh_TO_CRACK_IT""")
 
 
-@bot.command(hidden=True)
+all_commands.append(probe)
+
+
+@commands.command(hidden=True)
 async def ssh(ctx):
     """This command hacks the port"""
     await ctx.send(""">CRACKING_SUCCESSFUL
     >USE_porthack_TO_GAIN_ACCESS""")
 
 
-@bot.command(hidden=True)
+all_commands.append(ssh)
+
+
+@commands.command(hidden=True)
 async def porthack(ctx):
     """This command lets you inside"""
     await ctx.send(""">HACK_SUCCESSFUL
     >USE_ls_TO_ACCESS_FILES""")
 
 
-@bot.command(hidden=True)
+all_commands.append(porthack)
+
+
+@commands.command(hidden=True)
 async def ls(ctx):
     """This command scans bot and lets you into files of bot"""
     await ctx.send(""">1_DIRECTORY_FOUND
@@ -437,7 +542,10 @@ async def ls(ctx):
     >USE_cdhome_TO_ACCESS_FILES""")
 
 
-@bot.command(hidden=True)
+all_commands.append(ls)
+
+
+@commands.command(hidden=True)
 async def cdhome(ctx):
     """This command scans existing folders of bot and let's you access folder"""
     await ctx.send(""">ONE_DIRECTORY_FOUND
@@ -445,7 +553,10 @@ async def cdhome(ctx):
     >USE_catREADME_TO_VIEW_FILE_CONTENTS""")
 
 
-@bot.command(hidden=True)
+all_commands.append(cdhome)
+
+
+@commands.command(hidden=True)
 async def catREADME(ctx):
     """This command shows what's inside of file"""
     await ctx.send("""VIEWING_File:README.txt
@@ -456,21 +567,30 @@ async def catREADME(ctx):
     >Have a nice day! *Gh0st4rt1st* *x0x0* """)
 
 
-@bot.command(hidden=True)
+all_commands.append(catREADME)
+
+
+@commands.command(hidden=True)
 async def annoyeveryone(ctx):
     for i in range(10):
         await ctx.send("Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",  tts=True)
         await asyncio.sleep(30)
 
 
-@bot.command(hidden=True)
+all_commands.append(annoyeveryone)
+
+
+@commands.command(hidden=True)
 async def tts(ctx):
     for i in range(10):
         await ctx.send("Don't you just hate it when your cat wakes you up like this? Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow.", tts=True)
         await asyncio.sleep(30)
 
 
-@bot.command(aliases=['addq'])
+all_commands.append(tts)
+
+
+@commands.command(aliases=['addq'])
 async def addquote(ctx, keyword: str, *, quotetext: str):
     """Adds a quote to the database
     Specify the keword in "" if it has spaces in it.
@@ -480,7 +600,10 @@ async def addquote(ctx, keyword: str, *, quotetext: str):
     await ctx.send("I saved the quote.")
 
 
-@bot.command(hidden=True, aliases=['delq', 'delquote'])
+all_commands.append(addquote)
+
+
+@commands.command(hidden=True, aliases=['delq', 'delquote'])
 @commands.has_permissions(manage_messages=True)
 async def deletequote(ctx, keyword: str):
     """Deletes the quote with the given keyword
@@ -494,7 +617,10 @@ async def deletequote(ctx, keyword: str):
         await ctx.send("I could not find the quote.")
 
 
-@bot.command(aliases=['liqu'])
+all_commands.append(deletequote)
+
+
+@commands.command(aliases=['liqu'])
 async def listquotes(ctx):
     """Lists all quotes on the current server"""
     result = ""
@@ -506,7 +632,10 @@ async def listquotes(ctx):
         await ctx.send("I couldn't find any quotes on this server.")
 
 
-@bot.command(hidden=True, aliases=['eval'])
+all_commands.append(listquotes)
+
+
+@commands.command(hidden=True, aliases=['eval'])
 async def evaluate(ctx, *, message:str):
     """Evaluates an arbitrary python expression"""
     if (ctx.message.author.id != 167311142744489984):
@@ -519,7 +648,10 @@ async def evaluate(ctx, *, message:str):
     await ctx.send(embed=embed)
 
 
-@bot.command(hidden=True, aliases=['leaveserver, leave'])
+all_commands.append(evaluate)
+
+
+@commands.command(hidden=True, aliases=['leaveserver, leave'])
 @is_in_owners()
 async def leaveguild(ctx, id: int):
     guild = bot.get_guild(id)
@@ -527,7 +659,10 @@ async def leaveguild(ctx, id: int):
     await ctx.send("I left that Guild.")
 
 
-@bot.command(hidden=False)
+all_commands.append(leaveguild)
+
+
+@commands.command(hidden=False)
 async def glitch(ctx):
     "The second Easter Egg"
     await ctx.send("""Who created Walkers Join book?
@@ -537,25 +672,61 @@ async def glitch(ctx):
     Type answer as ``.letter``""")
 
 
-@bot.command(hidden=True)
+all_commands.append(glitch)
+
+
+@commands.command(hidden=True)
 async def c(ctx):
     "Answer"
     await ctx.send("Correct, Walkers Join book was created by Caro and Helryon")
 
 
-@bot.command(hidden=True)
+all_commands.append(c)
+
+
+@commands.command(hidden=True)
 async def a(ctx):
     "Answer"
     await ctx.send("Wrong...")
 
 
-@bot.command(hidden=True)
+all_commands.append(a)
+
+
+@commands.command(hidden=True)
 async def b(ctx):
     "Answer"
     await ctx.send("Wrong...")
 
+
+all_commands.append(b)
+
+
+@aio_as_trio
+async def setup_bot():
+    global bot
+    bot = commands.Bot(command_prefix=settings.get('prefix', '.'),
+                       description=settings.get('Bot Description', 'S.A.I.L'), pm_help=True, intents=intents)
+
+    for event in all_events:
+        bot.add_listener(event)
+
+    for command in all_commands:
+        bot.add_command(command)
+
+
+async def main() -> None:
+    async with trio_asyncio.open_loop() as loop:
+        await setup_bot()
+        assert bot is not None
+        try:
+            await aio_as_trio(partial(bot.start, loginID, reconnect=True))
+        except KeyboardInterrupt:
+            await aio_as_trio(bot.logout)
+
+
 try:
-    bot.run(loginID, reconnect=True)
+    trio.run(main)
 except Exception as e:
     logger.error(e)
     raise ValueError(
