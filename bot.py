@@ -93,6 +93,7 @@ trio_as_aio = trio_asyncio.trio_as_aio
 # That is why for everything new that isn't just sending messages etc, I am using trio.
 # All bot functions and events are called using asyncIO by default, so if we want to jump to trio, we need to use
 # trio_as_aio. If we want to jump from trio to asyncio, we use aio_as_trio.
+# We also use convention to name trio functions, that don't have decorator, as function_trio.
 Context = commands.Context
 
 all_commands: List[commands.Command] = []
