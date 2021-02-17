@@ -263,7 +263,7 @@ async def on_message(message: discord.Message) -> None:
     if message.author.bot:
         return
 
-    logger.info(f"Processing Message with ID {message.id}")
+    logger.debug(f"Processing Message with ID {message.id}")
 
     def check(oldmessage) -> bool:
         text = oldmessage.clean_content.lower()
@@ -330,7 +330,7 @@ async def on_message(message: discord.Message) -> None:
                 "Here is the link: https://my.w.tt/LexRMPK1eS. Enjoy reading! :D"
             )
     else:
-        logger.info(f"Going to process message with {message.id} as a command!")
+        logger.debug(f"Going to process message with {message.id} as a command!")
         # TODO: BugBug. Process Commands already runs even without being called even though on_message is overridden.
         # await bot.process_commands(message)
 
