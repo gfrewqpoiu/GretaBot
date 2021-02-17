@@ -72,7 +72,7 @@ else:
 log_channel_id: Optional[int] = int(settings.get("Logging Channel", fallback="0"))
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.8.0"
+bot_version: str = "0.8.1"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = discord.Intents.default()
