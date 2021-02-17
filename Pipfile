@@ -7,6 +7,7 @@ verify_ssl = true
 ipython = "*"
 trio-typing = "*"
 mypy = "*"
+black = {extras = ["d"], version = "*"}
 
 [packages]
 peewee = "*"
@@ -16,7 +17,9 @@ trio = "*"
 httpx = "*"
 cchardet = "*"
 sniffio = "*"
-trio-asyncio = "<0.13"
+trio-asyncio = "*"
+tenacity = "*"
+trio-util = "*"
 
 [requires]
 python_version = "3.9"
