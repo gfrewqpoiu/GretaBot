@@ -12,6 +12,7 @@ from functools import partial
 from enum import IntEnum
 from datetime import timedelta
 import string
+import sniffio
 
 try:  # These are mandatory.
     import discord
@@ -169,12 +170,25 @@ async def _add_global_quote_trio(
 async def log_to_channel(message: str):
     global log_channel
     if log_channel is not None:
-        try:
-            await log_channel.send(message)
-        except RuntimeError:
-            # This happens if the channel gets closed but the bot wants to log something
-            log_channel = None
-            pass
+        if sniffio.current_async_library() == "asyncio":
+            try:
+                await log_channel.send(message)
+            except RuntimeError:
+                # This happens if the channel gets closed but the bot wants to log something
+                log_channel = None
+                pass
+        elif sniffio.current_async_library() == "trio":
+            try:
+                if debugging:
+                    print("Logging from trio!")
+                await aio_as_trio(log_channel.send)(message)
+            except RuntimeError:
+                # This happens if the channel gets closed but the bot wants to log something
+                log_channel = None
+                pass
+        else:
+            if debugging:
+                print("Tried logging to channel without async context!")
 
 
 @aio_as_trio
@@ -1079,8 +1093,9 @@ async def main() -> None:
         await trio.to_thread.run_sync(db.connect)
         await trio.to_thread.run_sync(db.create_tables, [Quote])
         logger.debug("Database is initialized.")
+        start_cmd = partial(bot.start, loginID, reconnect=True)
         try:
-            await aio_as_trio(partial(bot.start, loginID, reconnect=True))
+            await aio_as_trio(start_cmd)
         except KeyboardInterrupt:
             logger.warning("Logging out the bot.")
             await aio_as_trio(bot.logout)
