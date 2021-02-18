@@ -316,7 +316,7 @@ async def on_ready_trio() -> None:
 
 async def on_ready() -> None:
     await trio_as_aio(on_ready_trio)()
-    logger.debug("Done with bot setup.")
+    logger.success("Done with bot setup.")
 
 
 all_events.append(on_ready)
