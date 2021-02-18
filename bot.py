@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 import sys
 import os
-import pprint
-import asyncio
 from checks import *
 import logging
 import subprocess
-import warnings
+
+# noinspection PyUnresolvedReferences
 from typing import Optional, List, Union, Any, Tuple, Callable, Dict
 from functools import partial
 from enum import IntEnum
 from datetime import timedelta
 import string
-import sniffio
+import random
+import warnings
+import time
 
 try:  # These are mandatory.
     import discord
@@ -24,6 +25,7 @@ try:  # These are mandatory.
     import trio_asyncio
     import trio
     import trio_util
+    import sniffio
 except ImportError:
     raise ImportError(
         "You have some dependencies missing, please install them with pipenv install --deploy"
@@ -33,6 +35,7 @@ from database import db, Quote
 from loguru_intercept import InterceptHandler
 
 
+# noinspection PyBroadException
 def _restart() -> None:
     try:
         os.execl(sys.executable, sys.executable, *sys.argv)
@@ -72,7 +75,7 @@ else:
 log_channel_id: Optional[int] = int(settings.get("Logging Channel", fallback="0"))
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.8.1"
+bot_version: str = "0.9.0"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = discord.Intents.default()
@@ -86,6 +89,8 @@ punctuation = string.punctuation  # A list of all punctuation characters
 bot: Optional[commands.Bot] = None
 
 # Some shorthands for easier access.
+Context = commands.Context
+DiscordException = discord.DiscordException
 aio_as_trio = trio_asyncio.aio_as_trio
 trio_as_aio = trio_asyncio.trio_as_aio
 # What is trio_asyncio? That makes it possible to use functions from the libraries asyncio and trio together.
@@ -95,7 +100,6 @@ trio_as_aio = trio_asyncio.trio_as_aio
 # All bot functions and events are called using asyncIO by default, so if we want to jump to trio, we need to use
 # trio_as_aio. If we want to jump from trio to asyncio, we use aio_as_trio.
 # We also use convention to name trio functions, that don't have decorator, as function_trio.
-Context = commands.Context
 
 all_commands: List[commands.Command] = []
 all_events: List[Callable] = []
@@ -115,6 +119,8 @@ global_quotes: Dict[str, str] = {
     "XD": "XC",
 }
 
+shutting_down = trio_util.AsyncBool()
+
 
 def input_to_bool(text: str) -> Optional[bool]:
     if text.lower() in ["yes", "y", "yeah", "ja", "j"]:
@@ -125,10 +131,92 @@ def input_to_bool(text: str) -> Optional[bool]:
         return None
 
 
-async def set_status_text(message: str) -> None:
+async def sleep_both(sleep_time: float) -> None:
+    try:
+        lib = sniffio.current_async_library()
+        if lib == "asyncio":
+            await asyncio.sleep(sleep_time)
+        elif lib == "trio":
+            await trio.sleep(sleep_time)
+    except sniffio.AsyncLibraryNotFoundError:
+        warnings.warn("Sleep was called without async context.")
+        time.sleep(sleep_time)
+
+
+@logger.catch(reraise=True)
+async def set_status_text_both(message: str) -> None:
+    """Sets the status of the bot as "playing message"
+
+    Can be called from both trio and asyncio."""
     assert bot is not None
+    logger.debug(f"Setting playing status to {message}")
     game = discord.Game(message)
-    await bot.change_presence(activity=game)
+    try:
+        if sniffio.current_async_library() == "asyncio":
+            await bot.change_presence(activity=game)
+        elif sniffio.current_async_library() == "trio":
+            await aio_as_trio(bot.change_presence)(activity=game)
+    except sniffio.AsyncLibraryNotFoundError:
+        warnings.warn("Not in async context.", RuntimeWarning)
+        bot.loop.create_task(bot.change_presence(activity=game))
+
+
+@logger.catch(reraise=True)
+async def send_message_both(
+    target: discord.abc.Messageable, message: str, **kwargs
+) -> None:
+    """Sends a message to `target`.
+
+    Can be called both from asyncio and trio."""
+    assert bot is not None
+
+    if shutting_down.value:
+        return
+
+    def chunks(long_string: str):
+        """Produce `n`-character chunks from `s`."""
+        for start in range(0, len(long_string), 1950):
+            yield long_string[start:start + 1950]
+
+    if len(message) > 1950:
+        for sub_message in chunks(message):
+            await send_message_both(target, sub_message, **kwargs)
+            await sleep_both(3)
+        return
+
+    try:
+        if sniffio.current_async_library() == "asyncio":
+            await target.send(content=message, **kwargs)
+        elif sniffio.current_async_library() == "trio":
+            await aio_as_trio(target.send)(content=message, **kwargs)
+    except sniffio.AsyncLibraryNotFoundError:
+        warnings.warn("Not in async Context.", RuntimeWarning)
+        bot.loop.create_task(target.send(content=message, **kwargs))
+
+
+async def wait_for_event_both(
+    event: str,
+    check: Any,
+    timeout: float = 15.0,
+) -> Any:
+    """Uses the bot to wait for a specific Discord Event.
+    
+    :param event: A string representing the Discord Event to wait for.
+    :param check: A boolean callable with a check whether to trigger the Event or None to always trigger.
+    :param timeout: How long to wait for until raising TimeoutError.
+    :return: None or the result from the event.
+    :raises: TimeoutError
+    """
+    assert bot is not None
+    try:
+        if sniffio.current_async_library() == "asyncio":
+            return await bot.wait_for(event, timeout=timeout, check=check)
+        elif sniffio.current_async_library() == "trio":
+            return await aio_as_trio(wait_for_event_both)(event, check, timeout)
+    except sniffio.AsyncLibraryNotFoundError:
+        raise RuntimeError("Not in async Context.")
+    except asyncio.TimeoutError:
+        raise TimeoutError("The event didn't happen.")
 
 
 def log_startup() -> None:
@@ -167,33 +255,30 @@ async def _add_global_quote_trio(
         await trio.to_thread.run_sync(quote.save)
 
 
-async def log_to_channel(message: str):
+def log_to_channel(message: str):
     global log_channel
-    if log_channel is not None:
-        if sniffio.current_async_library() == "asyncio":
-            try:
-                await log_channel.send(message)
-            except RuntimeError:
-                # This happens if the channel gets closed but the bot wants to log something
-                log_channel = None
-                pass
-        elif sniffio.current_async_library() == "trio":
-            try:
-                if debugging:
-                    print("Logging from trio!")
-                await aio_as_trio(log_channel.send)(message)
-            except RuntimeError:
-                # This happens if the channel gets closed but the bot wants to log something
-                log_channel = None
-                pass
+    """Logs a message to the log channel using the bot's internal loop."""
+
+    # There are probably better ways to do this, but we are constrained by three things.
+    # 1. We only get message as a parameter and cannot add any other parameters. Maybe Contextvars?
+    # 2. This function needs to be callable from sync context, asyncio context, and trio context.
+    # 3. If this errors, there is a high likelihood to cause a deadlock and crash so we need to avoid that.
+    try:
+        if log_channel is not None:
+            assert bot is not None
+            if not shutting_down.value:
+                bot.loop.create_task(send_message_both(log_channel, message))
         else:
-            if debugging:
-                print("Tried logging to channel without async context!")
+            pass
+    except DiscordException:
+        pass
 
 
-@aio_as_trio
-async def setup_channel_logger() -> Optional[int]:
-    format_str = "```{time: HH:mm:ss.SSS} | <level>{level: <8}</level> | {function}:{line} - <level>{message}</level>```"
+def setup_channel_logger() -> Optional[int]:
+    format_str = (
+        "```{time: HH:mm:ss.SSS} | <level>{level: <8}</level> | {function}:{line} - <level>{"
+        "message}</level>```"
+    )
     if log_channel is not None:
         logger.info(f"Setting up logging to {log_channel.name}")
         return logger.add(
@@ -216,13 +301,13 @@ async def setup_log_channel(nursery: trio.Nursery) -> None:
         log_channel = bot.get_channel(log_channel_id)
         if log_channel is not None:
             logger.debug("Found bot log channel.")
-            nursery.start_soon(setup_channel_logger)
+            nursery.start_soon(trio.to_thread.run_sync, setup_channel_logger)
 
 
 async def on_ready_trio() -> None:
     async with trio.open_nursery() as nursery:
         nursery.start_soon(trio.to_thread.run_sync, log_startup)
-        nursery.start_soon(aio_as_trio(partial(set_status_text, "waiting")))
+        nursery.start_soon(set_status_text_both, "waiting")
         for keyword, text in global_quotes.items():
             nursery.start_soon(_add_global_quote_trio, keyword, text, None)
         nursery.start_soon(setup_log_channel, nursery)
@@ -280,10 +365,10 @@ async def on_message(message: discord.Message) -> None:
     logger.debug(f"Processing Message with ID {message.id}")
 
     def check(oldmessage) -> bool:
-        text = oldmessage.clean_content.lower()
+        message_text = oldmessage.clean_content.lower()
         agreement = ["yes", "y", "yeah", "ja", "j", "no", "n", "nah", "nein"]
         return (
-            text in agreement
+            message_text in agreement
             and oldmessage.author == message.author
             and oldmessage.channel == message.channel
         )
@@ -301,7 +386,7 @@ async def on_message(message: discord.Message) -> None:
     if bot.user.mentioned_in(message):
         await channel.send(f"Can I help you with anything?")
         try:
-            tripped = await bot.wait_for("message", timeout=15.0, check=check)
+            tripped = await wait_for_event_both("message", timeout=15.0, check=check)
             if input_to_bool(tripped.clean_content.lower()):
                 await channel.send(
                     f"Okay use the {bot.command_prefix}help command to get a list of my commands!"
@@ -401,12 +486,14 @@ async def shutdown(ctx):
     Only works for the bot owner"""
     await ctx.send("Shutting down!", delete_after=3)
     await asyncio.sleep(5)
+    shutting_down.value = True
     logger.warning(f"Shutting down on request of {ctx.author.name}!")
+    await asyncio.sleep(3)
     db.close()
     try:
         await bot.close()
         raise KeyboardInterrupt
-    except Exception:
+    except discord.DiscordException:
         sys.exit(1)
 
 
@@ -415,6 +502,7 @@ all_commands.append(shutdown)
 
 @commands.command(hidden=True)
 @is_in_owners()
+@logger.catch(reraise=True)
 async def update(ctx):
     """Updates the bot with the newest Version from GitHub
     Only works for the bot owner"""
@@ -427,7 +515,7 @@ async def update(ctx):
         embed.set_author(name="Output:")
         embed.set_footer(text=output.stdout.decode("utf-8"))
         await ctx.send(embed=embed)
-    except:
+    except subprocess.CalledProcessError:
         await ctx.send("That didn't work for some reason...")
 
 
@@ -445,7 +533,7 @@ async def restart(ctx):
     db.close()
     try:
         _restart()
-    except:
+    except BaseException:
         pass
 
 
@@ -620,6 +708,7 @@ async def changes(ctx):
     """A command to show what has been added and/or removed from bot"""
     await ctx.send(
         """The changes:
+    0.9.0 -> **CHANGED**: Logging fixed, new playing statuses.
     0.8.0 -> **CHANGED**: Start of new version of first easter egg game.
     0.7.2 -> **FIXED**: Moving hard coded quotes into the database. Should make commands much faster.
     0.7.1 -> **CHANGED**: The bot is back! Now using trio-asyncio for easier coding.
@@ -729,12 +818,14 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         else:
             raise ValueError("Invalid Progress state.")
 
-    async def run_exit():
-        await aio_as_trio(ctx.send)("I closed the console and ended the game for you.")
+    async def run_exit(target: discord.abc.Messageable) -> None:
+        await send_message_both(
+            target, "I closed the console and ended the game for you."
+        )
         return
 
-    def base_prompt(ctx, progress):
-        prompt = f"{ctx.author.name}@"
+    def base_prompt(user: discord.User, progress: Progress) -> str:
+        prompt = f"{user.name}@"
         if progress not in [Progress.START, Progress.COMPLETED, Progress.HACKED]:
             prompt = prompt + "Server"
         else:
@@ -751,26 +842,31 @@ async def hacknet_trio(ctx: commands.Context) -> None:
 
         return False
 
-    introduction = """Welcome to the first easter Egg mini game. 
+    introduction = f"""Welcome to the first easter Egg mini game. 
     This minigame is based on games like hacknet and hack_run. It allows you to try and hack a Server to find
     a secret note. 
-    If you want to start the game now, enter `yes` in the next 20 seconds.
+    If you want to start the game now, enter `yes` in the next {wait_time} seconds.
+    The game will be played in Private Messages, so if you want to play, the bot needs to be able to PM you.
     
     Once the game has started, you can enter help into the console to get some additional info."""
-    await aio_as_trio(ctx.send)(introduction)
+    await send_message_both(ctx, introduction)
     try:
-        await aio_as_trio(bot.wait_for)(
-            "message", check=lambda msg: msg.clean_content.lower() == "yes", timeout=20
+        assert bot is not None
+        await wait_for_event_both(
+            "message", check=lambda msg: msg.clean_content.lower() == "yes", timeout=wait_time
         )
-    except asyncio.TimeoutError:
-        logger.error("Timed out!")
-        await aio_as_trio(ctx.send)("Okay, game has not started.")
+    except TimeoutError:
+        logger.warning(f"{ctx.author} played hack_net but timed out.")
+        await send_message_both(ctx, "Okay, game has not started.")
         return
+
+    await send_message_both(user, "Thank you for your interest in playing, the rest is not implemented yet.")
+    raise NotImplementedError
 
 
 @commands.command(hidden=True, aliases=["hack_net"])
 async def hacknet(ctx: commands.Context) -> None:
-    """Use this command to check for open ports (ps. this is first step command of Easter egg)"""
+    """Use this command to start the new mini game (ps. this is first step command of Easter egg)."""
     await trio_as_aio(hacknet_trio)(ctx)
 
 
@@ -869,7 +965,7 @@ async def repeat_message_trio(
         raise ValueError("Must sleep for at least 0.5 seconds between messages.")
     run = 0
     async for _ in trio_util.periodic(sleep_time):
-        await aio_as_trio(ctx.send)(message, tts=tts)
+        await send_message_both(ctx, message, tts=tts)
         run += 1
         if run >= amount:
             break
@@ -923,8 +1019,9 @@ async def _add_quote_trio(ctx: commands.Context, keyword: str, quote_text: str):
 @commands.command(aliases=["addq"])
 @commands.has_permissions(manage_messages=True)
 async def addquote(ctx, keyword: str, *, quote_text: str):
-    """Adds a quote to the database
-    Specify the keword in "" if it has spaces in it.
+    """Adds a quote to the database.
+
+    Specify the keyword in "" if it has spaces in it.
     Like this: addquote "key message" Reacting Text"""
     if len(keyword) < 1 or len(quote_text) < 1:
         await ctx.send("Keyword or quote text missing")
@@ -945,7 +1042,8 @@ all_commands.append(addquote)
 @is_in_owners()
 async def add_global_quote(ctx, keyword: str, *, quote_text: str):
     """Adds a global quote to the database
-    Specify the keword in "" if it has spaces in it.
+
+    Specify the keyword in "" if it has spaces in it.
     Like this: addgq "key message" Reacting Text"""
     if len(keyword) < 1 or len(quote_text) < 1:
         await ctx.send("Keyword or quote text missing")
@@ -962,7 +1060,8 @@ async def add_global_quote(ctx, keyword: str, *, quote_text: str):
 @commands.command(hidden=True, aliases=["delq", "delquote"])
 @commands.has_permissions(manage_messages=True)
 async def deletequote(ctx, keyword: str):
-    """Deletes the quote with the given keyword
+    """Deletes the quote with the given keyword.
+
     If the keyword has spaces in it, it must be quoted like this:
     deletequote "Keyword with spaces" """
     quote = Quote.get_or_none(
@@ -1022,6 +1121,7 @@ all_commands.append(evaluate)
 @commands.command(hidden=True, aliases=["leaveserver, leave"])
 @is_in_owners()
 async def leaveguild(ctx, id: int):
+    assert bot is not None
     guild = bot.get_guild(id)
     await guild.leave()
     await ctx.send("I left that Guild.")
@@ -1033,6 +1133,7 @@ all_commands.append(leaveguild)
 @commands.command(hidden=False)
 async def glitch(ctx: commands.Context):
     "The second Easter Egg"
+    assert bot is not None
     await ctx.send(
         """Who created Walkers Join book?
     a ME;
@@ -1052,7 +1153,7 @@ async def glitch(ctx: commands.Context):
         )
 
     try:
-        tripped = await bot.wait_for("message", timeout=15.0, check=check)
+        tripped = await wait_for_event_both("message", timeout=15.0, check=check)
         answer = tripped.clean_content.lower()
         if answer != "c":
             await ctx.send("Wrong answer!")
@@ -1083,51 +1184,83 @@ async def setup_bot():
         bot.add_command(command)
 
 
+async def cycle_playing_status_trio() -> None:
+    statuses = [
+        "making fun of Butler bot >:D",
+        "poking Sky :p",
+        "calling gfrew as Mr.Doot :D",
+        "cuddling with Gh0st :D",
+        "curiously poking Bird bot :o",
+        "racing with Star :)",
+        "planning to take over the world >:)",
+        "planning to annoy Butler bot ;p",
+        "annoying Lavio >:(",
+        "screeching at Mee6 bot >:o",
+        "Butler bot is rude >:(",
+    ]
+    period = 5 * 60
+    await trio.sleep(15)
+    assert bot is not None
+    async for _ in trio_util.periodic(period):
+        # noinspection PyBroadException
+        try:
+            await set_status_text_both(random.choice(statuses))
+        except DiscordException:
+            break
+        except RuntimeError:
+            break
+
+
 async def main() -> None:
     # This is a trio function, so we can call trio stuff directly, but for starting asyncio functions we need a loop.
     async with trio_asyncio.open_loop() as loop:
         # Now we can use aio_as_trio to jump to asyncio.
-        await setup_bot()
-        assert bot is not None
-        logger.debug("Initializing Database.")
-        await trio.to_thread.run_sync(db.connect)
-        await trio.to_thread.run_sync(db.create_tables, [Quote])
-        logger.debug("Database is initialized.")
-        start_cmd = partial(bot.start, loginID, reconnect=True)
         try:
-            await aio_as_trio(start_cmd)
+            async with trio.open_nursery() as nursery:
+                # This is a nursery, it allows us to start Tasks that should run at the same time.
+                await setup_bot()
+                assert bot is not None
+                logger.debug("Initializing Database.")
+                await trio.to_thread.run_sync(db.connect)
+                await trio.to_thread.run_sync(db.create_tables, [Quote])
+                logger.debug("Database is initialized.")
+                start_cmd = partial(bot.start, loginID, reconnect=True)
+                nursery.start_soon(aio_as_trio(start_cmd))
+                nursery.start_soon(cycle_playing_status_trio)
         except KeyboardInterrupt:
-            logger.warning("Logging out the bot.")
-            await aio_as_trio(bot.logout)
+            if bot is not None:
+                shutting_down.value = True
+                logger.warning("Logging out the bot.")
+                await aio_as_trio(bot.logout)
         finally:
             logger.debug("Closing the Database connection.")
             await trio.to_thread.run_sync(db.close)
-            await logger.complete()
+            await aio_as_trio(logger.complete)
 
-
-try:
-    if debugging:
-        logger.add(
-            "Gretabot_debug.log",
-            rotation="00:00",
-            retention="1 week",
-            backtrace=True,
-            diagnose=True,
-            enqueue=True,
+if __name__ == '__main__':
+    try:
+        if debugging:
+            logger.add(
+                "Gretabot_debug.log",
+                rotation="00:00",
+                retention="1 week",
+                backtrace=True,
+                diagnose=True,
+                enqueue=True,
+            )
+        else:
+            logger.add(
+                "Gretabot.log",
+                rotation="00:00",
+                retention="1 week",
+                backtrace=False,
+                diagnose=False,
+                enqueue=True,
+            )
+        trio.run(main)
+    except DiscordException as e:
+        logger.error(e)
+        raise ValueError(
+            "Couldn't log in with the given credentials, please check those in config.ini"
+            " and your connection and try again!"
         )
-    else:
-        logger.add(
-            "Gretabot.log",
-            rotation="00:00",
-            retention="1 week",
-            backtrace=False,
-            diagnose=False,
-            enqueue=True,
-        )
-    trio.run(main)
-except Exception as e:
-    logger.error(e)
-    raise ValueError(
-        "Couldn't log in with the given credentials, please check those in config.ini"
-        " and your connection and try again!"
-    )
