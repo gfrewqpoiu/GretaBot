@@ -75,7 +75,7 @@ else:
 log_channel_id: Optional[int] = int(settings.get("Logging Channel", fallback="0"))
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.9.0"
+bot_version: str = "0.9.1"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = discord.Intents.default()
@@ -120,6 +120,8 @@ global_quotes: Dict[str, str] = {
 }
 
 shutting_down = trio_util.AsyncBool()
+global_nursery: trio.Nursery
+logging_queue: asyncio.Queue
 
 
 def input_to_bool(text: str) -> Optional[bool]:
@@ -158,7 +160,7 @@ async def set_status_text_both(message: str) -> None:
             await aio_as_trio(bot.change_presence)(activity=game)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async context.", RuntimeWarning)
-        bot.loop.create_task(bot.change_presence(activity=game))
+        global_nursery.start_soon(aio_as_trio, partial(bot.change_presence, activity=game))
 
 
 @logger.catch(reraise=True)
@@ -191,7 +193,8 @@ async def send_message_both(
             await aio_as_trio(target.send)(content=message, **kwargs)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async Context.", RuntimeWarning)
-        bot.loop.create_task(target.send(content=message, **kwargs))
+        task = partial(target.send, content=message, **kwargs)
+        global_nursery.start_soon(aio_as_trio, task)
 
 
 async def wait_for_event_both(
@@ -221,6 +224,7 @@ async def wait_for_event_both(
 
 def log_startup() -> None:
     assert bot is not None
+    shutting_down.value = True
     logger.info("Logged in as")
     logger.info(bot.user.name)
     logger.info(bot.user.id)
@@ -257,7 +261,7 @@ async def _add_global_quote_trio(
 
 def log_to_channel(message: str):
     global log_channel
-    """Logs a message to the log channel using the bot's internal loop."""
+    """Puts a message into the queue for the logging task to log it."""
 
     # There are probably better ways to do this, but we are constrained by three things.
     # 1. We only get message as a parameter and cannot add any other parameters. Maybe Contextvars?
@@ -267,29 +271,32 @@ def log_to_channel(message: str):
         if log_channel is not None:
             assert bot is not None
             if not shutting_down.value:
-                bot.loop.create_task(send_message_both(log_channel, message))
+                try:
+                    logging_queue.put_nowait(message)
+                except asyncio.QueueFull:
+                    pass
         else:
             pass
     except DiscordException:
         pass
 
 
-def setup_channel_logger() -> Optional[int]:
+async def setup_channel_logger() -> Optional[int]:
     format_str = (
         "```{time: HH:mm:ss.SSS} | <level>{level: <8}</level> | {function}:{line} - <level>{"
         "message}</level>```"
     )
     if log_channel is not None:
         logger.info(f"Setting up logging to {log_channel.name}")
-        # return logger.add(
-        #     log_to_channel,
-        #     level="INFO",
-        #     format=format_str,
-        #     colorize=False,
-        #     backtrace=False,
-        #     diagnose=False,
-        #     enqueue=True,
-        # )
+        return logger.add(
+            log_to_channel,
+            level="INFO",
+            format=format_str,
+            colorize=False,
+            backtrace=False,
+            diagnose=False,
+            enqueue=True,
+        )
     return None
 
 
@@ -298,11 +305,10 @@ async def setup_log_channel(nursery: trio.Nursery) -> None:
     global log_channel
     if log_channel_id is not None:
         assert bot is not None
-        await asyncio.sleep(3)
         log_channel = bot.get_channel(log_channel_id)
         if log_channel is not None:
             logger.debug("Found bot log channel.")
-            nursery.start_soon(trio.to_thread.run_sync, setup_channel_logger)
+            await setup_channel_logger()
 
 
 async def on_ready_trio() -> None:
@@ -312,11 +318,13 @@ async def on_ready_trio() -> None:
         for keyword, text in global_quotes.items():
             nursery.start_soon(_add_global_quote_trio, keyword, text, None)
         nursery.start_soon(setup_log_channel, nursery)
+    global_nursery.start_soon(logging_task)
     logger.debug("Done with setup in trio.")
 
 
 async def on_ready() -> None:
     await trio_as_aio(on_ready_trio)()
+    shutting_down.value = False
     logger.success("Done with bot setup.")
 
 
@@ -709,7 +717,7 @@ async def changes(ctx):
     """A command to show what has been added and/or removed from bot"""
     await ctx.send(
         """The changes:
-    0.9.0 -> **CHANGED**: Logging fixed, new playing statuses.
+    0.9.1 -> **CHANGED**: Logging fixed, new playing statuses.
     0.8.0 -> **CHANGED**: Start of new version of first easter egg game.
     0.7.2 -> **FIXED**: Moving hard coded quotes into the database. Should make commands much faster.
     0.7.1 -> **CHANGED**: The bot is back! Now using trio-asyncio for easier coding.
@@ -1147,7 +1155,7 @@ async def glitch(ctx: commands.Context):
     channel = ctx.message.channel
 
     def check(message):
-        text = message.clean_content.lower()
+        text = message.clean_content.strip().lower()
         answers = ["a", "b", "c"]
         return (
             text in answers and author == message.author and channel == message.channel
@@ -1212,7 +1220,17 @@ async def cycle_playing_status_trio() -> None:
             break
 
 
+@aio_as_trio
+async def logging_task():
+    while True:
+        message = await logging_queue.get()
+        if not shutting_down.value:
+            await send_message_both(log_channel, message)
+            await asyncio.sleep(3)
+
+
 async def main() -> None:
+    global global_nursery, logging_queue
     # This is a trio function, so we can call trio stuff directly, but for starting asyncio functions we need a loop.
     async with trio_asyncio.open_loop() as loop:
         # Now we can use aio_as_trio to jump to asyncio.
@@ -1226,6 +1244,8 @@ async def main() -> None:
                 await trio.to_thread.run_sync(db.create_tables, [Quote])
                 logger.debug("Database is initialized.")
                 start_cmd = partial(bot.start, loginID, reconnect=True)
+                global_nursery = nursery
+                logging_queue = asyncio.Queue(10)
                 nursery.start_soon(aio_as_trio(start_cmd))
                 nursery.start_soon(cycle_playing_status_trio)
         except KeyboardInterrupt:
