@@ -279,6 +279,10 @@ def log_to_channel(message: str):
             pass
     except DiscordException:
         pass
+    except RuntimeError:
+        pass
+    except AttributeError:
+        pass
 
 
 async def setup_channel_logger() -> Optional[int]:
