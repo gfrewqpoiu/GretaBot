@@ -14,15 +14,21 @@ peewee = "*"
 discord-py = {extras = ["voice"], version = "*"}
 loguru = "*"
 trio = "*"
-httpx = "*"
-cchardet = "*"
+httpx = {extras = ["http2"], version = "*"}
 sniffio = "*"
 trio-asyncio = "*"
 tenacity = "*"
 trio-util = "*"
+cchardet = "*"
+brotlipy = "*"
+trio-parallel = "*"
+trimeter = {editable = true, git = "https://github.com/python-trio/trimeter.git"}
 
 [requires]
 python_version = "3.9"
 
 [pipenv]
 allow_prereleases = true
+
+[scripts]
+bot = "python bot.py"
