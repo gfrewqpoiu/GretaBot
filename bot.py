@@ -281,15 +281,15 @@ def setup_channel_logger() -> Optional[int]:
     )
     if log_channel is not None:
         logger.info(f"Setting up logging to {log_channel.name}")
-        return logger.add(
-            log_to_channel,
-            level="INFO",
-            format=format_str,
-            colorize=False,
-            backtrace=False,
-            diagnose=False,
-            enqueue=True,
-        )
+        # return logger.add(
+        #     log_to_channel,
+        #     level="INFO",
+        #     format=format_str,
+        #     colorize=False,
+        #     backtrace=False,
+        #     diagnose=False,
+        #     enqueue=True,
+        # )
     return None
 
 
@@ -298,6 +298,7 @@ async def setup_log_channel(nursery: trio.Nursery) -> None:
     global log_channel
     if log_channel_id is not None:
         assert bot is not None
+        await asyncio.sleep(3)
         log_channel = bot.get_channel(log_channel_id)
         if log_channel is not None:
             logger.debug("Found bot log channel.")
