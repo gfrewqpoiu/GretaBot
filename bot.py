@@ -284,7 +284,8 @@ def log_to_channel(message: str):
     except DiscordException:
         pass
     except sniffio.AsyncLibraryNotFoundError:
-        return
+        # bot.loop.run_in_executor()
+        pass
 
 
 async def setup_channel_logger() -> Optional[int]:
@@ -653,7 +654,7 @@ all_commands.append(ban)
 async def info(ctx):
     """Gives some info about the bot"""
     message = f"""📢
-    Hello, I'm S.A.I.L, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
+    Hello, I'm {bot.user.name}, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
     *~Date when I was created: 2017-10-15.
     *~I was ported to Python by gfrewqpoiu on 2017-12-22.
     *~To see what commands I can perform, use `{bot.command_prefix}help`.
@@ -667,7 +668,9 @@ async def info(ctx):
     I am currently being rewritten to work in the new discordpy version.
     
     Fun facts:
-    1.)I was renamed from S.A.I.L to {bot.user.name}"""
+    1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L;
+    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice.
+    3.)I was renamed from S.A.I.L to {bot.user.name}"""
 
     await ctx.send(message)
 
