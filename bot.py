@@ -271,6 +271,7 @@ def log_to_channel(message: str):
         if log_channel is not None:
             assert bot is not None
             if not shutting_down.value:
+                _ = sniffio.current_async_library()
                 try:
                     logging_queue.put_nowait(message)
                 except asyncio.QueueFull:
@@ -279,6 +280,8 @@ def log_to_channel(message: str):
             pass
     except DiscordException:
         pass
+    except sniffio.AsyncLibraryNotFoundError:
+        return
 
 
 async def setup_channel_logger() -> Optional[int]:
