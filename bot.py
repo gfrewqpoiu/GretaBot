@@ -78,7 +78,7 @@ else:
 log_channel_id: Optional[int] = int(settings.get("Logging Channel", fallback="0"))
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.9.1"
+bot_version: str = "0.10.0"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = discord.Intents.default()
@@ -723,12 +723,14 @@ async def changes(ctx):
     """A command to show what has been added and/or removed from bot"""
     await ctx.send(
         """The changes:
+    0.10.0 -> **ADDED:** New help2 command for owners. 
+    Changes of 0.6.1 or earlier will be removed from this list in the next update.
     0.9.1 -> **CHANGED**: Logging fixed, new playing statuses.
     0.8.0 -> **CHANGED**: Start of new version of first easter egg game.
     0.7.2 -> **FIXED**: Moving hard coded quotes into the database. Should make commands much faster.
     0.7.1 -> **CHANGED**: The bot is back! Now using trio-asyncio for easier coding.
     0.6.1 -> **FIXED**: The purge command works again and so does the setplaying command
-    0.6.0 -> **ADDED:** Quote Sytem using a Database.
+    0.6.0 -> **ADDED:** Quote System using a Database.
     0.5.0 -> **CHANGED:** Rewrite for a new version of Discord.py.
     0.4.0 -> **ADDED:** More Utility Commands.
     0.3.0 -> **FIXED:** Broken permissions work now.
@@ -889,6 +891,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
     await send_message_both(user, base_prompt(user, current_progress))
     try:
         command = await wait_for_event_both('message', is_command_check, wait_time)
+        logger.success(f"{user.name} ran hack_net commmand {command.clean_content.lower()}")
     except TimeoutError:
         logger.warning(f"{user.name} played hack_net but timed out.")
     await trio.sleep(0.5)
