@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import sys
 import os
+
+import aiohttp
+
 from checks import *
 import logging
 import subprocess
@@ -75,7 +78,7 @@ else:
 log_channel_id: Optional[int] = int(settings.get("Logging Channel", fallback="0"))
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.9.1"
+bot_version: str = "0.10.0"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = discord.Intents.default()
@@ -451,6 +454,7 @@ all_events.append(on_message)
 
 @commands.command(hidden=True)
 async def invite(ctx):
+    """Gives a link to invite the bot."""
     await ctx.send(
         f"https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot&permissions=8"
     )
@@ -663,8 +667,7 @@ async def info(ctx):
     I am currently being rewritten to work in the new discordpy version.
     
     Fun facts:
-    1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L;
-    2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice."""
+    1.)I was renamed from S.A.I.L to {bot.user.name}"""
 
     await ctx.send(message)
 
@@ -720,12 +723,14 @@ async def changes(ctx):
     """A command to show what has been added and/or removed from bot"""
     await ctx.send(
         """The changes:
+    0.10.0 -> **ADDED:** New help2 command for owners. 
+    Changes of 0.6.1 or earlier will be removed from this list in the next update.
     0.9.1 -> **CHANGED**: Logging fixed, new playing statuses.
     0.8.0 -> **CHANGED**: Start of new version of first easter egg game.
     0.7.2 -> **FIXED**: Moving hard coded quotes into the database. Should make commands much faster.
     0.7.1 -> **CHANGED**: The bot is back! Now using trio-asyncio for easier coding.
     0.6.1 -> **FIXED**: The purge command works again and so does the setplaying command
-    0.6.0 -> **ADDED:** Quote Sytem using a Database.
+    0.6.0 -> **ADDED:** Quote System using a Database.
     0.5.0 -> **CHANGED:** Rewrite for a new version of Discord.py.
     0.4.0 -> **ADDED:** More Utility Commands.
     0.3.0 -> **FIXED:** Broken permissions work now.
@@ -788,17 +793,22 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         "ssh",
         "cat",
         "probe",
+        "credits",
+        "thanks"
     ]
     current_progress = Progress.START
 
     def get_help():
-        logger.info(f"The user {ctx.author}")
+        logger.info(f"The user {ctx.author} ran the help command of hack_net")
         return """This minigame is based on hacknet or other similar games like hack_run. 
         You may try some common UNIX Shell commands like cd, ls, cat, ssh, portscan etc.
         There is additionally a `tip` command which tries to give you a tip to proceed and `solution`,
-        which outright tells you the next command to run."""
+        which outright tells you the next command to run.
+        
+        You can also use the commands credits and thanks to get credits and thanks from the developer."""
 
     def get_tip(progress: Progress):
+        logger.warning(f"The user {ctx.author} ran the tip command of hack_net")
         if progress == Progress.COMPLETED:
             return "You are already done. Thanks for playing!"
         elif progress == Progress.START:
@@ -817,6 +827,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
             raise ValueError("Invalid Progress state.")
 
     def get_solution(progress: Progress):
+        logger.warning(f"The user {ctx.author} ran the solution command of hack_net")
         if progress == Progress.COMPLETED:
             return "You are already done. Thanks for playing!"
         elif progress == Progress.START:
@@ -837,11 +848,12 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         return
 
     def base_prompt(user: discord.User, progress: Progress) -> str:
-        prompt = f"{user.name}@"
+        prompt = f"```{user.name}@"
         if progress not in [Progress.START, Progress.COMPLETED, Progress.HACKED]:
             prompt = prompt + "Server"
         else:
             prompt = prompt + "localhost"
+        prompt += "> ```"
         return prompt
 
     def is_command_check(message: discord.Message) -> bool:
@@ -854,7 +866,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
 
         return False
 
-    introduction = f"""Welcome to the first easter Egg mini game. 
+    introduction = f"""Welcome to the third easter Egg mini game. 
     This minigame is based on games like hacknet and hack_run. It allows you to try and hack a Server to find
     a secret note. 
     If you want to start the game now, enter `yes` in the next {wait_time} seconds.
@@ -868,21 +880,32 @@ async def hacknet_trio(ctx: commands.Context) -> None:
             "message", check=lambda msg: msg.clean_content.lower() == "yes", timeout=wait_time
         )
     except TimeoutError:
-        logger.warning(f"{ctx.author} played hack_net but timed out.")
+        logger.warning(f"{ctx.author} ran hack_net but timed out.")
         await send_message_both(ctx, "Okay, game has not started.")
         return
 
+    await send_message_both(user, """Okay, this is your prompt. Just respond with a command and it gets run.
+    *Hint: Any commands, that are not recognized, get ignored.*
+    If you want to end the game at any time, enter `end` or `exit`""")
+    await trio.sleep(0.5)
+    await send_message_both(user, base_prompt(user, current_progress))
+    try:
+        command = await wait_for_event_both('message', is_command_check, wait_time)
+        logger.success(f"{user.name} ran hack_net commmand {command.clean_content.lower()}")
+    except TimeoutError:
+        logger.warning(f"{user.name} played hack_net but timed out.")
+    await trio.sleep(0.5)
     await send_message_both(user, "Thank you for your interest in playing, the rest is not implemented yet.")
     raise NotImplementedError
 
 
-@commands.command(hidden=True, aliases=["hack_net"])
-async def hacknet(ctx: commands.Context) -> None:
+@commands.command(hidden=True, aliases=["hacknet"])
+async def hack_net(ctx: commands.Context) -> None:
     """Use this command to start the new mini game (ps. this is first step command of Easter egg)."""
     await trio_as_aio(hacknet_trio)(ctx)
 
 
-all_commands.append(hacknet)
+all_commands.append(hack_net)
 
 
 @commands.command(hidden=False)
@@ -999,14 +1022,15 @@ async def annoy_everyone(ctx: commands.Context):
 all_commands.append(annoy_everyone)
 
 
-@commands.command(hidden=True)
+@commands.command(hidden=False)
 async def tts(ctx: commands.Context):
+    """Says a funny tts phrase once."""
     await trio_as_aio(repeat_message_trio)(
         ctx,
         "Don't you just hate it when your cat wakes you up like this? Meow. Meow. "
         "Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. "
         "Meow. Meow. Meow. Meow. Meow. Meow.",
-        3,
+        1,
         20,
         True,
     )
@@ -1069,13 +1093,14 @@ async def add_global_quote(ctx, keyword: str, *, quote_text: str):
     await ctx.send("I saved the quote.")
 
 
-@commands.command(hidden=True, aliases=["delq", "delquote"])
+@commands.command(hidden=False, aliases=["delq", "delquote"])
 @commands.has_permissions(manage_messages=True)
 async def deletequote(ctx, keyword: str):
     """Deletes the quote with the given keyword.
 
     If the keyword has spaces in it, it must be quoted like this:
-    deletequote "Keyword with spaces" """
+    deletequote "Keyword with spaces"
+    Only works for people that can delete messages in this server."""
     quote = Quote.get_or_none(
         Quote.guildId == ctx.guild.id, Quote.keyword == keyword.lower()
     )
@@ -1089,7 +1114,7 @@ async def deletequote(ctx, keyword: str):
 all_commands.append(deletequote)
 
 
-@commands.command(aliases=["liqu"], name="listquotes")
+@commands.command(hidden=False, aliases=["liqu"], name="listquotes")
 async def list_quotes(ctx):
     """Lists all quotes on the current server"""
     result = ""
@@ -1133,6 +1158,7 @@ all_commands.append(evaluate)
 @commands.command(hidden=True, aliases=["leaveserver, leave"])
 @is_in_owners()
 async def leaveguild(ctx, id: int):
+    """Leaves the server with the given ID."""
     assert bot is not None
     guild = bot.get_guild(id)
     await guild.leave()
@@ -1179,6 +1205,33 @@ async def glitch(ctx: commands.Context):
 all_commands.append(glitch)
 
 
+@commands.command(hidden=True)
+@is_in_owners()
+async def help2(ctx: commands.Context):
+    """Modified Help Command that shows all commands."""
+    assert bot is not None
+    try:
+        bot.help_command.show_hidden = True
+        cmd = bot.help_command
+
+        if cmd is None:
+            return None
+
+        cmd.context = ctx
+        await cmd.prepare_help_command(ctx, None)
+        mapping = cmd.get_bot_mapping()
+        injected = cmd.send_bot_help
+        try:
+            return await injected(mapping)
+        except discord.DiscordException as e:
+            await cmd.on_help_command_error(ctx, e)
+            return None
+    finally:
+        bot.help_command.show_hidden = False
+
+all_commands.append(help2)
+
+
 @aio_as_trio  # This makes the code in this function, which is written in asyncio, callable from trio.
 async def setup_bot():
     global bot
@@ -1214,12 +1267,16 @@ async def cycle_playing_status_trio() -> None:
     await trio.sleep(15)
     assert bot is not None
     async for _ in trio_util.periodic(period):
+        if shutting_down.value:
+            break
         # noinspection PyBroadException
         try:
             await set_status_text_both(random.choice(statuses))
         except DiscordException:
             break
         except RuntimeError:
+            break
+        except aiohttp.ClientConnectionError:
             break
 
 
