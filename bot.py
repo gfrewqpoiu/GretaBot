@@ -275,6 +275,7 @@ def log_to_channel(message: str):
             assert bot is not None
             if not shutting_down.value:
                 _ = sniffio.current_async_library()
+                # This works when calling from asyncio but not from trio.
                 try:
                     logging_queue.put_nowait(message)
                 except asyncio.QueueFull:
@@ -284,7 +285,11 @@ def log_to_channel(message: str):
     except DiscordException:
         pass
     except sniffio.AsyncLibraryNotFoundError:
-        # bot.loop.run_in_executor()
+        # This happens when calling logger from trio flavored functions.
+        # Sadly, nothing seems to be transferred to this state.
+        assert bot is not None
+        task = aio_as_trio(bot.loop.run_in_executor)(log_to_channel, message)
+        global_nursery.start_soon(aio_as_trio, task)
         pass
 
 
@@ -302,7 +307,7 @@ async def setup_channel_logger() -> Optional[int]:
             colorize=False,
             backtrace=False,
             diagnose=False,
-            enqueue=True,
+            enqueue=False,
         )
     return None
 
@@ -782,7 +787,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         COMPLETED = 5
 
     channel = ctx.channel
-    user = ctx.author
+    user: discord.User = ctx.author
     wait_time = 30
     allowed_commands = [
         "help",
@@ -860,7 +865,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         return prompt
 
     def is_command_check(message: discord.Message) -> bool:
-        if message.author != user or message.channel != channel:
+        if message.author != user or message.channel != user.dm_channel:
             return False
         content = message.clean_content.lower()
         for command in allowed_commands:
