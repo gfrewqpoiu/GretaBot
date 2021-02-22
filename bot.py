@@ -29,6 +29,16 @@ try:  # These are mandatory.
     import trio
     import trio_util
     import sniffio
+    from tenacity import (
+        Retrying,
+        AsyncRetrying,
+        RetryError,
+        stop_never,
+        retry_unless_exception_type,
+        retry_if_exception_type,
+        wait_fixed,
+        retry_all,
+    )
 except ImportError:
     raise ImportError(
         "You have some dependencies missing, please install them with pipenv install --deploy"
@@ -103,6 +113,7 @@ trio_as_aio = trio_asyncio.trio_as_aio
 # All bot functions and events are called using asyncIO by default, so if we want to jump to trio, we need to use
 # trio_as_aio. If we want to jump from trio to asyncio, we use aio_as_trio.
 # We also use convention to name trio functions, that don't have decorator, as function_trio.
+# If a function is callable from both, we name it function_both.
 
 all_commands: List[commands.Command] = []
 all_events: List[Callable] = []
@@ -163,12 +174,14 @@ async def set_status_text_both(message: str) -> None:
             await aio_as_trio(bot.change_presence)(activity=game)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async context.", RuntimeWarning)
-        global_nursery.start_soon(aio_as_trio, partial(bot.change_presence, activity=game))
+        global_nursery.start_soon(
+            aio_as_trio, partial(bot.change_presence, activity=game)
+        )
 
 
 @logger.catch(reraise=True)
 async def send_message_both(
-    target: discord.abc.Messageable, message: str, **kwargs
+    target: discord.abc.Messageable, message: str, no_log: bool = False, **kwargs
 ) -> None:
     """Sends a message to `target`.
 
@@ -181,7 +194,7 @@ async def send_message_both(
     def chunks(long_string: str):
         """Produce `n`-character chunks from `s`."""
         for start in range(0, len(long_string), 1950):
-            yield long_string[start:start + 1950]
+            yield long_string[start : start + 1950]
 
     if len(message) > 1950:
         for sub_message in chunks(message):
@@ -191,12 +204,21 @@ async def send_message_both(
 
     try:
         if sniffio.current_async_library() == "asyncio":
+            if not no_log:
+                logger.debug(
+                    f"Sending message {message} to {str(target)} from asyncio."
+                )
             await target.send(content=message, **kwargs)
         elif sniffio.current_async_library() == "trio":
+            if not no_log:
+                logger.debug(f"Sending message {message} to {str(target)} from trio.")
             await aio_as_trio(target.send)(content=message, **kwargs)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async Context.", RuntimeWarning)
         task = partial(target.send, content=message, **kwargs)
+        logger.debug(
+            f"Sending message {message} to {str(target)} from outside async context."
+        )
         global_nursery.start_soon(aio_as_trio, task)
 
 
@@ -206,7 +228,7 @@ async def wait_for_event_both(
     timeout: float = 15.0,
 ) -> Any:
     """Uses the bot to wait for a specific Discord Event.
-    
+
     :param event: A string representing the Discord Event to wait for.
     :param check: A boolean callable with a check whether to trigger the Event or None to always trigger.
     :param timeout: How long to wait for until raising TimeoutError.
@@ -274,8 +296,10 @@ def log_to_channel(message: str):
         if log_channel is not None:
             assert bot is not None
             if not shutting_down.value:
-                _ = sniffio.current_async_library()
+                library = sniffio.current_async_library()
                 # This works when calling from asyncio but not from trio.
+                if debugging:
+                    print(f"Logging to Discord from Library: {library}")
                 try:
                     logging_queue.put_nowait(message)
                 except asyncio.QueueFull:
@@ -287,9 +311,7 @@ def log_to_channel(message: str):
     except sniffio.AsyncLibraryNotFoundError:
         # This happens when calling logger from trio flavored functions.
         # Sadly, nothing seems to be transferred to this state.
-        assert bot is not None
-        task = aio_as_trio(bot.loop.run_in_executor)(log_to_channel, message)
-        global_nursery.start_soon(aio_as_trio, task)
+        # We just ignore the message in this case, it gets logged to file and console anyway.
         pass
 
 
@@ -589,7 +611,7 @@ all_commands.append(ping)
 async def say(ctx, *, message: str):
     """Repeats what you said"""
     logger.debug(f"Running Say Command with the message: {message}")
-    await ctx.send(message)
+    await send_message_both(ctx, message)
 
 
 all_commands.append(say)
@@ -600,7 +622,7 @@ all_commands.append(say)
 async def say2(ctx, *, message: str):
     """Repeats what you said and removes it"""
     await ctx.message.delete()
-    await ctx.send(message)
+    await send_message_both(ctx, message)
 
 
 all_commands.append(say2)
@@ -907,7 +929,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
     raise NotImplementedError
 
 
-@commands.command(hidden=True, aliases=["hacknet"])
+@commands.command(hidden=True, aliases=["hacknet", "hack_run", "hackrun"])
 async def hack_net(ctx: commands.Context) -> None:
     """Use this command to start the new mini game (ps. this is first step command of Easter egg)."""
     await trio_as_aio(hacknet_trio)(ctx)
@@ -1237,6 +1259,7 @@ async def help2(ctx: commands.Context):
     finally:
         bot.help_command.show_hidden = False
 
+
 all_commands.append(help2)
 
 
@@ -1293,7 +1316,7 @@ async def logging_task():
     while True:
         message = await logging_queue.get()
         if not shutting_down.value:
-            await send_message_both(log_channel, message)
+            await send_message_both(log_channel, message, True)
             await asyncio.sleep(3)
 
 
@@ -1326,30 +1349,41 @@ async def main() -> None:
             await trio.to_thread.run_sync(db.close)
             await aio_as_trio(logger.complete)
 
-if __name__ == '__main__':
-    try:
-        if debugging:
-            logger.add(
-                "Gretabot_debug.log",
-                rotation="00:00",
-                retention="1 week",
-                backtrace=True,
-                diagnose=True,
-                enqueue=True,
-            )
-        else:
-            logger.add(
-                "Gretabot.log",
-                rotation="00:00",
-                retention="1 week",
-                backtrace=False,
-                diagnose=False,
-                enqueue=True,
-            )
-        trio.run(main)
-    except DiscordException as e:
-        logger.error(e)
-        raise ValueError(
-            "Couldn't log in with the given credentials, please check those in config.ini"
-            " and your connection and try again!"
+
+if __name__ == "__main__":
+    if debugging:
+        logger.add(
+            "Gretabot_debug.log",
+            rotation="00:00",
+            retention="1 week",
+            backtrace=True,
+            diagnose=True,
+            enqueue=True,
         )
+    else:
+        logger.add(
+            "Gretabot.log",
+            rotation="00:00",
+            retention="1 week",
+            backtrace=False,
+            diagnose=False,
+            enqueue=True,
+        )
+
+    for attempt in Retrying(
+        wait=wait_fixed(60),
+        retry=(
+            retry_if_exception_type(aiohttp.ClientConnectionError)
+            | retry_if_exception_type(trio.TrioInternalError)
+        ),
+        reraise=True,
+    ):
+        with attempt:
+            try:
+                trio.run(main)
+            except DiscordException as e:
+                logger.error(e)
+                raise ValueError(
+                    "Couldn't log in with the given credentials, please check those in config.ini"
+                    " and your connection and try again!"
+                )
