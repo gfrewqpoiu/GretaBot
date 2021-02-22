@@ -166,6 +166,7 @@ async def set_status_text_both(message: str) -> None:
     Can be called from both trio and asyncio."""
     assert bot is not None
     logger.debug(f"Setting playing status to {message}")
+    # noinspection PyArgumentList
     game = discord.Game(message)
     try:
         if sniffio.current_async_library() == "asyncio":
@@ -417,7 +418,7 @@ async def on_message(message: discord.Message) -> None:
         )
 
     text: str = message.clean_content.lower()
-    channel: Union[discord.TextChannel, discord.DMChannel] = message.channel
+    channel: Union[discord.TextChannel, discord.DMChannel, discord.GroupChannel] = message.channel
     guild: Optional[discord.Guild] = message.guild
 
     if guild:
@@ -589,6 +590,7 @@ all_commands.append(restart)
 async def gametitle(ctx, *, message: str) -> None:
     """Sets the currently playing status of the bot"""
     assert bot is not None
+    # noinspection PyArgumentList
     game = discord.Game(message)
     await bot.change_presence(activity=game)
 
@@ -1218,7 +1220,7 @@ all_commands.append(list_quotes)
 
 
 @commands.command(hidden=True, aliases=["eval"])
-@is_main_owner()
+@is_in_owners()
 async def evaluate(ctx, *, message: str):
     """Evaluates an arbitrary python expression.
 

@@ -8,6 +8,7 @@ ipython = "*"
 trio-typing = "*"
 mypy = "*"
 black = {extras = ["d"], version = "*"}
+"discord.py-stubs" = "*"
 
 [packages]
 peewee = "*"
