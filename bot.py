@@ -824,11 +824,11 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         "cat",
         "probe",
         "credits",
-        "thanks"
+        "thanks",
     ]
     current_progress = Progress.START
 
-    def get_help():
+    def get_help() -> str:
         logger.info(f"The user {ctx.author} ran the help command of hack_net")
         return """This minigame is based on hacknet or other similar games like hack_run. 
         You may try some common UNIX Shell commands like cd, ls, cat, ssh, portscan etc.
@@ -837,7 +837,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         
         You can also use the commands credits and thanks to get credits and thanks from the developer."""
 
-    def get_tip(progress: Progress):
+    def get_tip(progress: Progress) -> str:
         logger.warning(f"The user {ctx.author} ran the tip command of hack_net")
         if progress == Progress.COMPLETED:
             return "You are already done. Thanks for playing!"
@@ -856,7 +856,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         else:
             raise ValueError("Invalid Progress state.")
 
-    def get_solution(progress: Progress):
+    def get_solution(progress: Progress) -> str:
         logger.warning(f"The user {ctx.author} ran the solution command of hack_net")
         if progress == Progress.COMPLETED:
             return "You are already done. Thanks for playing!"
@@ -871,20 +871,26 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         else:
             raise ValueError("Invalid Progress state.")
 
-    async def run_exit(target: discord.abc.Messageable) -> None:
-        await send_message_both(
-            target, "I closed the console and ended the game for you."
-        )
-        return
+    def get_exit() -> str:
+        return "I closed the console and ended the game for you."
 
-    def base_prompt(user: discord.User, progress: Progress) -> str:
-        prompt = f"```{user.name}@"
+    def base_prompt(user: discord.User, progress: Progress) -> List[str]:
+        """Gives a base representation of the "console" for the current user without trailing `
+
+        :param user: The user
+        :param progress: The current game progress
+        :return: A list of substrings that should be joined by "".join(list).
+        """
+
+        # We are using a list of strings here because it allows us to add to a string efficiently.
+        # Strings are immutable in Python, so string = string + "Additional text" is really inefficient.
+        return_list = [f"```{user.name}@"]
         if progress not in [Progress.START, Progress.COMPLETED, Progress.HACKED]:
-            prompt = prompt + "Server"
+            return_list.append("Server")
         else:
-            prompt = prompt + "localhost"
-        prompt += "> ```"
-        return prompt
+            return_list.append("localhost")
+        return_list.append("> ")
+        return return_list
 
     def is_command_check(message: discord.Message) -> bool:
         if message.author != user or message.channel != user.dm_channel:
@@ -895,6 +901,49 @@ async def hacknet_trio(ctx: commands.Context) -> None:
                 return True
 
         return False
+
+    async def command_or_cancel() -> str:
+        try:
+            command = await wait_for_event_both("message", is_command_check, wait_time)
+            logger.success(
+                f"{user.name} ran hack_net commmand {command.clean_content.lower()}"
+            )
+            return command.clean_content.lower()
+        except TimeoutError:
+            logger.warning(f"{user.name} played hack_net but timed out.")
+            await send_message_both(
+                user, "You timed out while I waited for the next command."
+            )
+            raise TimeoutError
+
+    async def call_command(command: str) -> None:
+        # allowed_commands = [
+        #     "help",
+        #     "tip",
+        #     "solution",
+        #     "exit",
+        #     "end",
+        #     "cd",
+        #     "ls",
+        #     "portscan",
+        #     "ssh",
+        #     "cat",
+        #     "probe",
+        #     "credits",
+        #     "thanks",
+        # ]
+        if command.startswith("help"):
+            await send_message_both(user, get_help())
+            return
+        elif command.startswith("tip"):
+            await send_message_both(user, get_tip(current_progress))
+            return
+        elif command.startswith("solution"):
+            await send_message_both(user, get_solution(current_progress))
+            return
+        elif command.startswith("end") or command.startswith("exit"):
+            await send_message_both(user, get_exit())
+            return
 
     introduction = f"""Welcome to the third easter Egg mini game. 
     This minigame is based on games like hacknet and hack_run. It allows you to try and hack a Server to find
@@ -907,25 +956,29 @@ async def hacknet_trio(ctx: commands.Context) -> None:
     try:
         assert bot is not None
         await wait_for_event_both(
-            "message", check=lambda msg: msg.clean_content.lower() == "yes", timeout=wait_time
+            "message",
+            check=lambda msg: msg.clean_content.lower() == "yes",
+            timeout=wait_time,
         )
     except TimeoutError:
         logger.warning(f"{ctx.author} ran hack_net but timed out.")
         await send_message_both(ctx, "Okay, game has not started.")
         return
 
-    await send_message_both(user, """Okay, this is your prompt. Just respond with a command and it gets run.
+    await send_message_both(
+        user,
+        """Okay, this is your prompt. Just respond with a command and it gets run.
     *Hint: Any commands, that are not recognized, get ignored.*
-    If you want to end the game at any time, enter `end` or `exit`""")
+    If you want to end the game at any time, enter `end` or `exit`""",
+    )
     await trio.sleep(0.5)
-    await send_message_both(user, base_prompt(user, current_progress))
-    try:
-        command = await wait_for_event_both('message', is_command_check, wait_time)
-        logger.success(f"{user.name} ran hack_net commmand {command.clean_content.lower()}")
-    except TimeoutError:
-        logger.warning(f"{user.name} played hack_net but timed out.")
+    prompt = base_prompt(user, current_progress)
+    prompt.append("```")
+    await send_message_both(user, "".join(prompt))
     await trio.sleep(0.5)
-    await send_message_both(user, "Thank you for your interest in playing, the rest is not implemented yet.")
+    await send_message_both(
+        user, "Thank you for your interest in playing, the rest is not implemented yet."
+    )
     raise NotImplementedError
 
 
