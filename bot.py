@@ -147,6 +147,7 @@ def input_to_bool(text: str) -> Optional[bool]:
         return None
 
 
+@logger.catch(reraise=True)
 async def sleep_both(sleep_time: float) -> None:
     try:
         lib = sniffio.current_async_library()
