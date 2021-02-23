@@ -9,7 +9,7 @@ import logging
 import subprocess
 
 # noinspection PyUnresolvedReferences
-from typing import Optional, List, Union, Any, Tuple, Callable, Dict
+from typing import Optional, List, Union, Any, Tuple, Callable, Dict, Iterator
 from functools import partial
 from enum import IntEnum
 from datetime import timedelta
@@ -29,6 +29,16 @@ try:  # These are mandatory.
     import trio
     import trio_util
     import sniffio
+    from tenacity import (
+        Retrying,
+        AsyncRetrying,
+        RetryError,
+        stop_never,
+        retry_unless_exception_type,
+        retry_if_exception_type,
+        wait_fixed,
+        retry_all,
+    )
 except ImportError:
     raise ImportError(
         "You have some dependencies missing, please install them with pipenv install --deploy"
@@ -48,17 +58,19 @@ def _restart() -> None:
 
 log = logging.getLogger("discord")
 log.setLevel(logging.DEBUG)
-log.addHandler(InterceptHandler())
+log.addHandler(InterceptHandler())  # This makes discord use loguru for logging.
 
 config = getconf()
 login = config["Login"]
 settings = config["Settings"]
 loginID = login.get("Login Token")
 debugging = settings.getboolean("Debugging", fallback=False)
-logger.remove()
+logger.remove()  # This removes the default loguru logger.
 if not debugging:
-    log.setLevel(logging.INFO)
-    logger.add(
+    log.setLevel(
+        logging.INFO
+    )  # This means, ignore all messages that are debug or trace messages.
+    logger.add(  # Here we add the default loguru logger back but with different settings.
         sys.stderr,
         level="INFO",
         enqueue=True,
@@ -75,18 +87,28 @@ else:
         colorize=True,
         backtrace=True,
     )
-log_channel_id: Optional[int] = int(settings.get("Logging Channel", fallback="0"))
+try:
+    log_channel_id: Optional[int] = int(settings.get("Logging Channel", fallback="0"))
+except ValueError:
+    logger.warning(
+        "Couldn't read log_channel_id from the config file, disabling logging to Discord."
+    )
+    log_channel_id = None
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.10.0"
+bot_version: str = "0.11.0"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
-intents = discord.Intents.default()
-intents.typing = False
+intents = (
+    discord.Intents.default()
+)  # This basically tells the bot, for what events it should ask Discord.
+intents.typing = False  # This tells Discord that we don't care if someone is typing, so don't send that to us.
 intents.presences = (
     True  # If we want to track presence, we need this privileged intent.
+    # Presence refers to going online and offline, changing playing status or profile picture, etc.
 )
 intents.members = True  # This allows us to get all members of a guild. Also privileged.
+# Without this, we only get the people that actively run commands in the bot.
 punctuation = string.punctuation  # A list of all punctuation characters
 
 bot: Optional[commands.Bot] = None
@@ -102,12 +124,19 @@ trio_as_aio = trio_asyncio.trio_as_aio
 # That is why for everything new that isn't just sending messages etc, I am using trio.
 # All bot functions and events are called using asyncIO by default, so if we want to jump to trio, we need to use
 # trio_as_aio. If we want to jump from trio to asyncio, we use aio_as_trio.
-# We also use convention to name trio functions, that don't have decorator, as function_trio.
+# We also use a convention to name trio functions, that don't have decorator, as function_trio.
+# If a function is callable from both, we name it function_both.
 
-all_commands: List[commands.Command] = []
-all_events: List[Callable] = []
+all_commands: List[
+    commands.Command
+] = []  # This will be a list of all commands, that the bot will later activate.
+all_events: List[
+    Callable
+] = []  # This will be a list of all the events that the bot should listen to.
 
-global_quotes: Dict[str, str] = {
+global_quotes: Dict[
+    str, str
+] = {  # This is a dictionary of all the quotes that should work on any server.
     "/o/": "\\o\\",
     "\\o\\": "/o/",
     ">_>": "<_<",
@@ -122,12 +151,20 @@ global_quotes: Dict[str, str] = {
     "XD": "XC",
 }
 
-shutting_down = trio_util.AsyncBool()
-global_nursery: trio.Nursery
+shutting_down = (
+    trio_util.AsyncBool()
+)  # This is basically just a boolean value, that can be waited for.
+started_up = trio_util.AsyncBool()
+global_nursery: trio.Nursery  # A nursery is a way to run multiple things at the same time. This will be set later.
 logging_queue: asyncio.Queue
 
 
 def input_to_bool(text: str) -> Optional[bool]:
+    """Tries to convert input text to a boolean.
+
+    :param text: The text to convert to a boolean value
+    :return: A boolean if the input text was convertible to boolean, or None.
+    """
     if text.lower() in ["yes", "y", "yeah", "ja", "j"]:
         return True
     elif text.lower() in ["no", "n", "nah", "nein"]:
@@ -136,7 +173,12 @@ def input_to_bool(text: str) -> Optional[bool]:
         return None
 
 
+@logger.catch(reraise=True)
 async def sleep_both(sleep_time: float) -> None:
+    """A sleep function that can be called from asyncio and trio.
+
+    :param sleep_time: For how long the current task should sleep in seconds.
+    """
     try:
         lib = sniffio.current_async_library()
         if lib == "asyncio":
@@ -152,9 +194,13 @@ async def sleep_both(sleep_time: float) -> None:
 async def set_status_text_both(message: str) -> None:
     """Sets the status of the bot as "playing message"
 
-    Can be called from both trio and asyncio."""
+    Can be called from both trio and asyncio.
+    :param message: The message the bot should display in it's status."""
     assert bot is not None
+    if not started_up.value:
+        return
     logger.debug(f"Setting playing status to {message}")
+    # noinspection PyArgumentList
     game = discord.Game(message)
     try:
         if sniffio.current_async_library() == "asyncio":
@@ -163,25 +209,36 @@ async def set_status_text_both(message: str) -> None:
             await aio_as_trio(bot.change_presence)(activity=game)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async context.", RuntimeWarning)
-        global_nursery.start_soon(aio_as_trio, partial(bot.change_presence, activity=game))
+        global_nursery.start_soon(
+            aio_as_trio, partial(bot.change_presence, activity=game)
+        )
 
 
 @logger.catch(reraise=True)
 async def send_message_both(
-    target: discord.abc.Messageable, message: str, **kwargs
+    target: discord.abc.Messageable, message: str, no_log: bool = False, **kwargs
 ) -> None:
     """Sends a message to `target`.
 
-    Can be called both from asyncio and trio."""
+    Can be called both from asyncio and trio.
+
+    :rtype: None
+    :param target: discord.abc.Messageable: Where to send the message
+    :param message: str: The message to send
+    :param no_log: bool: Whether to not log the message. Defaults to False, so to log the message.
+    :param kwargs: Additional arguments to provide to target.send()
+    :raises: discord.Forbidden if it can't send the message
+    :raises: discord.HTTPException if the sending failed.
+    :return: None"""
     assert bot is not None
 
     if shutting_down.value:
         return
 
-    def chunks(long_string: str):
+    def chunks(long_string: str) -> Iterator[str]:
         """Produce `n`-character chunks from `s`."""
         for start in range(0, len(long_string), 1950):
-            yield long_string[start:start + 1950]
+            yield long_string[start : start + 1950]
 
     if len(message) > 1950:
         for sub_message in chunks(message):
@@ -190,13 +247,29 @@ async def send_message_both(
         return
 
     try:
-        if sniffio.current_async_library() == "asyncio":
+        if isinstance(target, discord.TextChannel):
+            name = target.name
+        elif isinstance(target, discord.DMChannel):
+            name = target.recipient.name
+        elif isinstance(target, discord.GroupChannel) and target.name is not None:
+            name = target.name
+        else:
+            name = str(target)
+        library = sniffio.current_async_library()
+        if not no_log:
+            logger.debug(f"Sending message {message} to {name} from {library}")
+        if library == "asyncio":
             await target.send(content=message, **kwargs)
-        elif sniffio.current_async_library() == "trio":
+        elif library == "trio":
             await aio_as_trio(target.send)(content=message, **kwargs)
+        else:
+            raise NotImplementedError
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async Context.", RuntimeWarning)
         task = partial(target.send, content=message, **kwargs)
+        logger.warning(
+            f"Sending message {message} to {str(target)} from outside async context."
+        )
         global_nursery.start_soon(aio_as_trio, task)
 
 
@@ -206,7 +279,7 @@ async def wait_for_event_both(
     timeout: float = 15.0,
 ) -> Any:
     """Uses the bot to wait for a specific Discord Event.
-    
+
     :param event: A string representing the Discord Event to wait for.
     :param check: A boolean callable with a check whether to trigger the Event or None to always trigger.
     :param timeout: How long to wait for until raising TimeoutError.
@@ -226,6 +299,7 @@ async def wait_for_event_both(
 
 
 def log_startup() -> None:
+    """This logs the startup messages to the console."""
     assert bot is not None
     shutting_down.value = True
     logger.info("Logged in as")
@@ -248,6 +322,14 @@ def log_startup() -> None:
 async def _add_global_quote_trio(
     keyword: str, text: str, author: Optional[discord.User] = None
 ) -> None:
+    """This adds a global quote to the database.
+
+    Global quotes work on any server and in Private messages with the bot.
+
+    :param keyword: The keyword of the quote
+    :param text: The text that the bot should send when the keyword is detected.
+    :param author: Optional,
+    """
     keyword = keyword.lower()
     quote = await trio.to_thread.run_sync(
         Quote.get_or_none, -1 == Quote.guildId, keyword == Quote.keyword
@@ -274,7 +356,10 @@ def log_to_channel(message: str):
         if log_channel is not None:
             assert bot is not None
             if not shutting_down.value:
-                _ = sniffio.current_async_library()
+                library = sniffio.current_async_library()
+                # This works when calling from asyncio but not from trio.
+                if debugging:
+                    print(f"Logging to Discord from Library: {library}")
                 try:
                     logging_queue.put_nowait(message)
                 except asyncio.QueueFull:
@@ -284,11 +369,14 @@ def log_to_channel(message: str):
     except DiscordException:
         pass
     except sniffio.AsyncLibraryNotFoundError:
-        # bot.loop.run_in_executor()
+        # This happens when calling logger from trio flavored functions.
+        # Sadly, nothing seems to be transferred to this state.
+        # We just ignore the message in this case, it gets logged to file and console anyway.
         pass
 
 
 async def setup_channel_logger() -> Optional[int]:
+    """Sets up a logger and returns the ID of the logger."""
     format_str = (
         "```{time: HH:mm:ss.SSS} | <level>{level: <8}</level> | {function}:{line} - <level>{"
         "message}</level>```"
@@ -302,13 +390,14 @@ async def setup_channel_logger() -> Optional[int]:
             colorize=False,
             backtrace=False,
             diagnose=False,
-            enqueue=True,
+            enqueue=False,
         )
     return None
 
 
 @aio_as_trio
-async def setup_log_channel(nursery: trio.Nursery) -> None:
+async def setup_log_channel() -> None:
+    """Starts the setup of the Discord Log Channel if one is defined in the config."""
     global log_channel
     if log_channel_id is not None:
         assert bot is not None
@@ -319,19 +408,25 @@ async def setup_log_channel(nursery: trio.Nursery) -> None:
 
 
 async def on_ready_trio() -> None:
+    """This runs the setup of other things that depend on the bot being fully ready."""
+    global log_channel
+    shutting_down.value = False
+    log_channel = None
+    started_up.value = False
     async with trio.open_nursery() as nursery:
         nursery.start_soon(trio.to_thread.run_sync, log_startup)
         nursery.start_soon(set_status_text_both, "waiting")
         for keyword, text in global_quotes.items():
             nursery.start_soon(_add_global_quote_trio, keyword, text, None)
-        nursery.start_soon(setup_log_channel, nursery)
+        nursery.start_soon(setup_log_channel)
+    started_up.value = True
     global_nursery.start_soon(logging_task)
     logger.debug("Done with setup in trio.")
 
 
 async def on_ready() -> None:
+    """This runs whenever the bot is ready to accept commands."""
     await trio_as_aio(on_ready_trio)()
-    shutting_down.value = False
     logger.success("Done with bot setup.")
 
 
@@ -339,6 +434,7 @@ all_events.append(on_ready)
 
 
 async def on_guild_join(server: discord.Guild) -> None:
+    """This runs whenever the bot gets invited into a new guild."""
     logger.success(f"I just joined the server {server.name} with the ID {server.id}")
 
 
@@ -346,6 +442,7 @@ all_events.append(on_guild_join)
 
 
 async def on_guild_remove(server: discord.Guild) -> None:
+    """This runs whenever the bot leaves a guild."""
     global log_channel
     if log_channel is not None:
         if log_channel.guild == server:
@@ -357,44 +454,59 @@ async def on_guild_remove(server: discord.Guild) -> None:
 all_events.append(on_guild_remove)
 
 
-async def _get_quote_trio(guild: discord.Guild, text: str) -> Optional[str]:
-    quote = await trio.to_thread.run_sync(
-        Quote.get_or_none, guild.id == Quote.guildId, text.lower() == Quote.keyword
-    )
+def _get_quote_sync(guild: discord.Guild, text: str) -> Optional[str]:
+    """This gets a quote from the database.
+
+    It prefers a guild specific quote, but if it can't find a guild quote, it will also look for a global quote.
+    :param guild: The discord.Guild that should be checked for quotes
+    :param text: The keyword to search for
+    :return: Either the found string, or None if nothing was found.
+    """
+    quote = Quote.get_or_none(guild.id == Quote.guildId, text.lower() == Quote.keyword)
     if quote:
         return quote.result
     else:
-        quote = await trio.to_thread.run_sync(
-            Quote.get_or_none, -1 == Quote.guildId, text.lower() == Quote.keyword
-        )
+        quote = Quote.get_or_none(-1 == Quote.guildId, text.lower() == Quote.keyword)
         if quote:
             return quote.result
     return None
 
 
 async def on_message(message: discord.Message) -> None:
-    assert bot is not None
+    """This function runs whenever the bot sees a new message in Discord.
 
-    if message.author.bot:
+    :param message: The discord.Message that the bot received.
+    :return: None
+    """
+    assert (
+        bot is not None
+    )  # assert means, check that this is the case, otherwise raise an Assertion Error.
+
+    if (
+        message.author.bot
+    ):  # If the message is from a bot, we ignore it and just end here.
         return
 
     logger.debug(f"Processing Message with ID {message.id}")
 
-    def check(oldmessage) -> bool:
-        message_text = oldmessage.clean_content.lower()
+    def booleanable(old_message: discord.Message) -> bool:
+        message_text = old_message.clean_content.lower()
         agreement = ["yes", "y", "yeah", "ja", "j", "no", "n", "nah", "nein"]
         return (
             message_text in agreement
-            and oldmessage.author == message.author
-            and oldmessage.channel == message.channel
+            and old_message.author == message.author
+            and old_message.channel == message.channel
         )
 
     text: str = message.clean_content.lower()
-    channel: Union[discord.TextChannel, discord.DMChannel] = message.channel
+    channel: Union[
+        discord.TextChannel, discord.DMChannel, discord.GroupChannel
+    ] = message.channel
     guild: Optional[discord.Guild] = message.guild
 
     if guild:
-        quote = await trio_as_aio(_get_quote_trio)(guild, text)
+        thread = partial(trio.to_thread.run_sync, partial(_get_quote_sync, guild, text))
+        quote = await trio_as_aio(thread)()
         if quote:
             await channel.send(quote)
             return
@@ -402,7 +514,9 @@ async def on_message(message: discord.Message) -> None:
     if bot.user.mentioned_in(message):
         await channel.send(f"Can I help you with anything?")
         try:
-            tripped = await wait_for_event_both("message", timeout=15.0, check=check)
+            tripped = await wait_for_event_both(
+                "message", timeout=15.0, check=booleanable
+            )
             if input_to_bool(tripped.clean_content.lower()):
                 await channel.send(
                     f"Okay use the {bot.command_prefix}help command to get a list of my commands!"
@@ -413,6 +527,9 @@ async def on_message(message: discord.Message) -> None:
                 )
         except asyncio.TimeoutError:
             return
+        except TimeoutError:
+            return
+
     elif isinstance(channel, discord.DMChannel):
         if (
             text[0] != bot.command_prefix
@@ -446,7 +563,7 @@ async def on_message(message: discord.Message) -> None:
             )
     else:
         logger.debug(f"Going to process message with {message.id} as a command!")
-        # TODO: BugBug. Process Commands already runs even without being called even though on_message is overridden.
+        # TODO: Bug. Process Commands already runs even without being called even though on_message is overridden.
         # await bot.process_commands(message)
 
 
@@ -454,8 +571,9 @@ all_events.append(on_message)
 
 
 @commands.command(hidden=True)
-async def invite(ctx):
+async def invite(ctx: commands.Context) -> None:
     """Gives a link to invite the bot."""
+    assert bot is not None
     await ctx.send(
         f"https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&scope=bot&permissions=8"
     )
@@ -464,22 +582,43 @@ async def invite(ctx):
 all_commands.append(invite)
 
 
-async def on_raw_reaction_add(payload):
+@commands.command(hidden=True)
+async def github(ctx: commands.Context) -> None:
+    """Gives a link to the code of this bot."""
+    await send_message_both(
+        ctx,
+        f"""Here is the github link to my code:
+        https://github.com/gfrewqpoiu/GretaBot""",
+    )
+
+
+all_commands.append(github)
+
+
+async def on_raw_reaction_add(payload: discord.RawReactionActionEvent) -> None:
+    """This gets called whenever the bot sees a new reaction to a message."""
+    if payload.member is None:
+        return
     logger.info(f"{payload.member} added reaction {payload.emoji} to a message.")
     # if reaction == ":star:":
     #    await bot.send_message(channel, "test")
 
     # else:
     #    await bot.process_commands(message)
-    await payload.member.send(f"I saw you react to a message, {payload.member.name}")
+    if debugging:
+        await payload.member.send(
+            f"I saw you react to a message, {payload.member.name}"
+        )
 
 
 all_events.append(on_raw_reaction_add)
 
 
-async def on_disconnect():
+async def on_disconnect() -> None:
+    """This runs whenever the client disconnects from Discord."""
     global log_channel
     log_channel = None
+    started_up.value = False
     logger.warning("Got disconnected from Discord.")
 
 
@@ -487,7 +626,7 @@ all_events.append(on_disconnect)
 
 
 @commands.command(hidden=True)
-async def version(ctx):
+async def version(ctx: commands.Context) -> None:
     """Gives back the bot version"""
     await ctx.send(bot_version)
 
@@ -498,9 +637,10 @@ all_commands.append(version)
 # Utility Commands
 @is_in_owners()
 @commands.command(hidden=True, aliases=["stop"])
-async def shutdown(ctx):
-    """Shuts the bot down
-    Only works for the bot owner"""
+async def shutdown(ctx: commands.Context) -> None:
+    """Shuts the bot down.
+
+    Only works for the bot owners."""
     await ctx.send("Shutting down!", delete_after=3)
     await asyncio.sleep(5)
     shutting_down.value = True
@@ -508,10 +648,13 @@ async def shutdown(ctx):
     await asyncio.sleep(3)
     db.close()
     try:
+        assert bot is not None
         await bot.close()
-        raise KeyboardInterrupt
+        raise SystemExit
     except discord.DiscordException:
         sys.exit(1)
+    except AssertionError:
+        raise SystemExit
 
 
 all_commands.append(shutdown)
@@ -519,10 +662,9 @@ all_commands.append(shutdown)
 
 @commands.command(hidden=True)
 @is_in_owners()
-@logger.catch(reraise=True)
-async def update(ctx):
+async def update(ctx: commands.Context) -> None:
     """Updates the bot with the newest Version from GitHub
-    Only works for the bot owner"""
+    Only works for the bot owners."""
     await ctx.send("Ok, I am updating from GitHub.")
     try:
         output: subprocess.CompletedProcess = await trio_as_aio(trio.run_process)(
@@ -532,8 +674,10 @@ async def update(ctx):
         embed.set_author(name="Output:")
         embed.set_footer(text=output.stdout.decode("utf-8"))
         await ctx.send(embed=embed)
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as er:
         await ctx.send("That didn't work for some reason...")
+        logger.exception(er)
+        raise er
 
 
 all_commands.append(update)
@@ -541,50 +685,63 @@ all_commands.append(update)
 
 @commands.command(hidden=True, aliases=["reboot"])
 @is_in_owners()
-async def restart(ctx):
-    """Restart the bot
-    Only works for the bot owner"""
+async def restart(ctx: commands.Context) -> None:
+    """Restarts the bot.
+    Only works for bot owners."""
     await ctx.send("Restarting", delete_after=3)
     await asyncio.sleep(5)
     logger.warning(f"Restarting on request of {ctx.author.name}!")
     db.close()
+    # noinspection PyBroadException
     try:
         _restart()
-    except BaseException:
+    except Exception:
         pass
 
 
 all_commands.append(restart)
 
 
-@commands.command(hidden=True, aliases=["setgame", "setplaying"])
+# noinspection PyUnusedLocal
+@commands.command(hidden=True, aliases=["setgame", "setplaying"], name="gametitle")
 @is_in_owners()
-async def gametitle(ctx, *, message: str) -> None:
-    """Sets the currently playing status of the bot"""
+async def game_title(ctx: commands.Context, *, message: str) -> None:
+    """Sets the currently playing status of the bot.
+    Only works for bot owners."""
     assert bot is not None
+    # noinspection PyArgumentList
     game = discord.Game(message)
     await bot.change_presence(activity=game)
 
 
-all_commands.append(gametitle)
+all_commands.append(game_title)
 
 
 @commands.command()
-async def ping(ctx):
+async def ping(ctx: commands.Context) -> None:
     """Checks the ping of the bot"""
     m = await ctx.send("Ping?")
     delay: timedelta = m.created_at - ctx.message.created_at
-    await m.edit(content=f"Pong, Latency is {int(delay.total_seconds() * 1000)} ms.")
+    try:
+        await m.edit(
+            content=f"Pong, Latency is {int(delay.total_seconds() * 1000)} ms."
+        )
+    except discord.Forbidden:
+        await send_message_both(ctx, "I cannot edit messages in this channel!")
+        await m.delete()
+        await send_message_both(
+            ctx, f"Pong, Latency is {int(delay.total_seconds() * 1000)} ms."
+        )
 
 
 all_commands.append(ping)
 
 
 @commands.command(hidden=True)
-async def say(ctx, *, message: str):
-    """Repeats what you said"""
+async def say(ctx: commands.Context, *, message: str) -> None:
+    """Repeats what you said."""
     logger.debug(f"Running Say Command with the message: {message}")
-    await ctx.send(message)
+    await send_message_both(ctx, message)
 
 
 all_commands.append(say)
@@ -592,40 +749,56 @@ all_commands.append(say)
 
 @commands.command(hidden=True)
 @commands.has_permissions(manage_messages=True)
-async def say2(ctx, *, message: str):
-    """Repeats what you said and removes it"""
-    await ctx.message.delete()
-    await ctx.send(message)
+async def say2(ctx: commands.Context, *, message: str) -> None:
+    """Repeats what you said and removes the command message."""
+    logger.debug(f"Running Say2 command with the message: {message}")
+    try:
+        await ctx.message.delete()
+    except discord.Forbidden:
+        await send_message_both(ctx, "I cannot delete messages in this channel!")
+    await send_message_both(ctx, message)
 
 
 all_commands.append(say2)
 
 
-@commands.command(hidden=True)
+@commands.command(hidden=True, aliases=["setchannel"])
 @is_in_owners()
-async def setchannel(ctx):
-    """Sets the channel for PM messaging"""
+@commands.guild_only()
+async def set_channel(ctx: commands.Context):
+    """Sets the channel for PM messaging."""
     global main_channel
     main_channel = ctx.channel
+    assert main_channel is not None
     await ctx.message.delete()
-    await ctx.send("Set the default channel to this channel.")
+    await send_message_both(
+        ctx, "Set the default channel to this channel.", delete_after=10
+    )
+    logger.success(f"Set the DM Response Channel to {main_channel.name} in {ctx.guild}")
 
 
-all_commands.append(setchannel)
+all_commands.append(set_channel)
 
 
 @commands.command()
 @commands.has_permissions(kick_members=True)
-async def kick(ctx):
+@commands.guild_only()
+async def kick(ctx: commands.Context, user: discord.Member) -> None:
     """Kicks the specified User"""
-    user = ctx.message.mentions[0]
     if user is None:
-        await ctx.send("No user was specified.")
+        await send_message_both(ctx, "No user was specified.")
         return
     try:
+        assert ctx.guild is not None
+        # noinspection PyUnresolvedReferences
         await ctx.kick(user)
-        await ctx.send("The user has been kicked from the server.")
-    except:
+        await send_message_both(ctx, f"{user.name} has been kicked from the server.")
+        logger.success(f"Kicked user {user.name} from Server {ctx.guild.name}")
+    except discord.Forbidden:
+        await send_message_both(
+            ctx, "I can't kick this user because of missing permissions."
+        )
+    except DiscordException:
         await ctx.send("I couldn't kick that user.")
 
 
@@ -634,16 +807,19 @@ all_commands.append(kick)
 
 @commands.command()
 @commands.has_permissions(ban_members=True)
-async def ban(ctx):
+@commands.guild_only()
+async def ban(ctx: commands.Context, user: discord.Member) -> None:
     """Bans the specified User"""
-    user = ctx.message.mentions[0]
     if user is None:
-        await ctx.send("No user was specified.")
+        await send_message_both(ctx, "No user was specified.")
         return
     try:
+        assert ctx.guild is not None
+        # noinspection PyUnresolvedReferences
         await ctx.ban(user)
-        await ctx.send("The user has been banned from the server.")
-    except:
+        await send_message_both(ctx, "The user has been banned from the server.")
+        logger.success(f"User {user.name} was banned from Server {ctx.guild.name}")
+    except DiscordException:
         await ctx.send("I couldn't ban that user.")
 
 
@@ -651,8 +827,9 @@ all_commands.append(ban)
 
 
 @commands.command()
-async def info(ctx):
+async def info(ctx: commands.Context):
     """Gives some info about the bot"""
+    assert bot is not None
     message = f"""📢
     Hello, I'm {bot.user.name}, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
     *~Date when I was created: 2017-10-15.
@@ -664,84 +841,89 @@ async def info(ctx):
     City/Town: Biržai and Klaipėda;
     *~Porting from js to py was done in:
     Country: Germany;
-    City/Town: Munich. 
-    I am currently being rewritten to work in the new discordpy version.
+    City/Town: Munich.
     
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L;
     2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice.
     3.)I was renamed from S.A.I.L to {bot.user.name}"""
 
-    await ctx.send(message)
+    await send_message_both(ctx, message)
 
 
 all_commands.append(info)
 
 
-@commands.command(aliases=["prune", "delmsgs"])
+@commands.command(aliases=["prune", "delmsgs", "deletemessages", "delete_messages"])
 @commands.has_permissions(manage_messages=True)
-async def purge(ctx, amount: int):
-    """Removes the given amount of messages from the given channel."""
+@commands.guild_only()
+async def purge(ctx: commands.Context, amount: int) -> None:
+    """Removes the given amount of messages from this channel."""
     try:
+        assert ctx.guild is not None
         await ctx.channel.purge(limit=(amount + 1))
+        logger.success(
+            f"Deleted {amount} messages from channel {ctx.channel.name} in Server {ctx.guild.name}"
+        )
+        await send_message_both(ctx, "Done!", delete_after=10)
     except discord.Forbidden:
-        await ctx.send("I couldn't do that because of missing permissions...")
+        await send_message_both(
+            ctx, "I couldn't do that because of missing permissions..."
+        )
+    except discord.HTTPException as ex:
+        logger.exception(ex)
+        raise ex
 
 
 all_commands.append(purge)
 
 
 @commands.command(hidden=False)
-async def tf2(ctx):
-    """Funny Video"""
-    await ctx.send("https://www.youtube.com/watch?v=r-u4rA_yZTA")
+async def tf2(ctx: commands.Context) -> None:
+    """Gives a link to a funny video from Team Fortress 2."""
+    await send_message_both(ctx, "https://www.youtube.com/watch?v=r-u4rA_yZTA")
 
 
 all_commands.append(tf2)
 
 
 @commands.command(hidden=False)
-async def an(ctx):
+async def an(ctx: commands.Context) -> None:
     """A command giving link to A->N website"""
-    await ctx.send(
+    # noinspection SpellCheckingInspection
+    await send_message_both(
+        ctx,
         """>R3DACT3D
-    >L1NK_R3M0V3D? = yes"""
+        >L1NK_R3M0V3D? = yes""",
     )
 
 
 all_commands.append(an)
 
 
-@commands.command(hidden=False)
-async def walkersjoin(ctx):
-    """A link to 24/7 Walker's Radio on youtube"""
-    await ctx.send("https://www.youtube.com/watch?v=ruOlyWdUMSw")
+@commands.command(hidden=False, name="walkersjoin")
+async def walkers_join(ctx: commands.Context) -> None:
+    """Gives a link to the now defunct 24/7 Walker's Radio on YouTube."""
+    await send_message_both(ctx, "https://www.youtube.com/watch?v=ruOlyWdUMSw")
 
 
-all_commands.append(walkersjoin)
+all_commands.append(walkers_join)
 
 
 @commands.command()
-async def changes(ctx):
+async def changes(ctx: commands.Context) -> None:
     """A command to show what has been added and/or removed from bot"""
-    await ctx.send(
+    await send_message_both(
+        ctx,
         """The changes:
+    0.11.0 -> **ADDED:** Lots of additional documentation.
     0.10.0 -> **ADDED:** New help2 command for owners. 
     Changes of 0.6.1 or earlier will be removed from this list in the next update.
+    EDIT: They have been removed.
     0.9.1 -> **CHANGED**: Logging fixed, new playing statuses.
     0.8.0 -> **CHANGED**: Start of new version of first easter egg game.
     0.7.2 -> **FIXED**: Moving hard coded quotes into the database. Should make commands much faster.
-    0.7.1 -> **CHANGED**: The bot is back! Now using trio-asyncio for easier coding.
-    0.6.1 -> **FIXED**: The purge command works again and so does the setplaying command
-    0.6.0 -> **ADDED:** Quote System using a Database.
-    0.5.0 -> **CHANGED:** Rewrite for a new version of Discord.py.
-    0.4.0 -> **ADDED:** More Utility Commands.
-    0.3.0 -> **FIXED:** Broken permissions work now.
-    0.2.0 -> **ADDED:** 
-    *~tf2 & an - link commands; 
-    *~extra reactions;
-    *~change - updates command showing what was added/removed from bot;
-    *~Special reaction w/ user tag."""
+    0.7.1 -> **CHANGED**: The bot is back! Now using trio-asyncio for easier coding.""",
     )
 
 
@@ -749,17 +931,19 @@ all_commands.append(changes)
 
 
 @commands.command()
-async def upcoming(ctx):
-    """Previews upcoming plans if there are any"""
-    await ctx.send("""This is upcoming:```Full version of hack_net game.```""")
+async def upcoming(ctx: commands.Context) -> None:
+    """Previews upcoming plans if there are any."""
+    await send_message_both(
+        ctx, """This is upcoming:```Full version of hack_run game.```"""
+    )
 
 
 all_commands.append(upcoming)
 
 
-@commands.command(hidden=True)
-async def FreeNitro(ctx):
-    """Free Discord Nitro"""
+@commands.command(hidden=True, aliases=["FreeNitro", "freenitro", "Free_Nitro"])
+async def free_nitro(ctx: commands.Context) -> None:
+    """Gives you a link to Free Discord Nitro."""
     await ctx.send(
         f"""{ctx.author.mention} >HAPPY_EASTER
     >HERE'S YOUR NITRO SUBSCRIPTION:
@@ -768,12 +952,19 @@ async def FreeNitro(ctx):
     )
 
 
-all_commands.append(FreeNitro)
+all_commands.append(free_nitro)
 
 
 @logger.catch(reraise=True)
 async def hacknet_trio(ctx: commands.Context) -> None:
+    """The implementation of the new hack_net and hack_run game.
+
+    The game is based heavily on hack_run. It is supposed to simulate a UNIX Terminal, where the user
+    can enter commands and progress to "connect" to a server and see a secret message."""
+
     class Progress(IntEnum):
+        """This represents the game progress."""
+
         START = 0
         FOUND = 1
         HACKED = 2
@@ -781,10 +972,10 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         IN_HOME = 4
         COMPLETED = 5
 
-    channel = ctx.channel
-    user = ctx.author
-    wait_time = 30
-    allowed_commands = [
+    user: discord.User = ctx.author
+    name: str = user.name
+    wait_time = 30  # How long to wait for user input before ending the game.
+    allowed_commands = [  # This is a list of all supported commands.
         "help",
         "tip",
         "solution",
@@ -797,12 +988,13 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         "cat",
         "probe",
         "credits",
-        "thanks"
+        "thanks",
     ]
     current_progress = Progress.START
 
-    def get_help():
-        logger.info(f"The user {ctx.author} ran the help command of hack_net")
+    def get_help() -> str:
+        """Returns the help for the game."""
+        logger.info(f"The user {ctx.author} ran the help command of hack_net.")
         return """This minigame is based on hacknet or other similar games like hack_run. 
         You may try some common UNIX Shell commands like cd, ls, cat, ssh, portscan etc.
         There is additionally a `tip` command which tries to give you a tip to proceed and `solution`,
@@ -810,7 +1002,8 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         
         You can also use the commands credits and thanks to get credits and thanks from the developer."""
 
-    def get_tip(progress: Progress):
+    def get_tip(progress: Progress) -> str:
+        """Returns a tip for the player to progress."""
         logger.warning(f"The user {ctx.author} ran the tip command of hack_net")
         if progress == Progress.COMPLETED:
             return "You are already done. Thanks for playing!"
@@ -829,7 +1022,8 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         else:
             raise ValueError("Invalid Progress state.")
 
-    def get_solution(progress: Progress):
+    def get_solution(progress: Progress) -> str:
+        """Tells the player what to do to progress to the next step."""
         logger.warning(f"The user {ctx.author} ran the solution command of hack_net")
         if progress == Progress.COMPLETED:
             return "You are already done. Thanks for playing!"
@@ -844,23 +1038,31 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         else:
             raise ValueError("Invalid Progress state.")
 
-    async def run_exit(target: discord.abc.Messageable) -> None:
-        await send_message_both(
-            target, "I closed the console and ended the game for you."
-        )
-        return
+    def get_exit() -> str:
+        """Returns the End Game String."""
+        return "I closed the console and ended the game for you."
 
-    def base_prompt(user: discord.User, progress: Progress) -> str:
-        prompt = f"```{user.name}@"
+    def base_prompt(user_name: str, progress: Progress) -> List[str]:
+        """Gives a base representation of the "console" for the current user without trailing `
+
+        :param user_name: The username
+        :param progress: The current game progress
+        :return: A list of substrings that should be joined by "".join(list).
+        """
+
+        # We are using a list of strings here because it allows us to add to a string efficiently.
+        # Strings are immutable in Python, so string = string + "Additional text" is really inefficient.
+        return_list = [f"```{user_name}@"]
         if progress not in [Progress.START, Progress.COMPLETED, Progress.HACKED]:
-            prompt = prompt + "Server"
+            return_list.append("Server")
         else:
-            prompt = prompt + "localhost"
-        prompt += "> ```"
-        return prompt
+            return_list.append("localhost")
+        return_list.append("> ")
+        return return_list
 
     def is_command_check(message: discord.Message) -> bool:
-        if message.author != user or message.channel != channel:
+        """Checks whether the given message is a command."""
+        if message.author != user or message.channel != user.dm_channel:
             return False
         content = message.clean_content.lower()
         for command in allowed_commands:
@@ -868,6 +1070,53 @@ async def hacknet_trio(ctx: commands.Context) -> None:
                 return True
 
         return False
+
+    async def command_or_cancel() -> str:
+        """Tries to get a command from the user."""
+        try:
+            command = await wait_for_event_both("message", is_command_check, wait_time)
+            logger.success(
+                f"{user.name} ran hack_net commmand {command.clean_content.lower()}"
+            )
+            return command.clean_content.lower()
+        except TimeoutError:
+            logger.warning(f"{user.name} played hack_net but timed out.")
+            await send_message_both(
+                user, "You timed out while I waited for the next command."
+            )
+            raise TimeoutError
+
+    async def call_command(command: str) -> None:
+        """Actually "runs" the given command."""
+        # allowed_commands = [
+        #     "help",
+        #     "tip",
+        #     "solution",
+        #     "exit",
+        #     "end",
+        #     "cd",
+        #     "ls",
+        #     "portscan",
+        #     "ssh",
+        #     "cat",
+        #     "probe",
+        #     "credits",
+        #     "thanks",
+        # ]
+        if command.startswith("help"):
+            await send_message_both(user, get_help())
+            return
+        elif command.startswith("tip"):
+            await send_message_both(user, get_tip(current_progress))
+            return
+        elif command.startswith("solution"):
+            await send_message_both(user, get_solution(current_progress))
+            return
+        elif command.startswith("end") or command.startswith("exit"):
+            await send_message_both(user, get_exit())
+            return
+        else:
+            raise NotImplementedError("Not yet implemented.")
 
     introduction = f"""Welcome to the third easter Egg mini game. 
     This minigame is based on games like hacknet and hack_run. It allows you to try and hack a Server to find
@@ -880,31 +1129,35 @@ async def hacknet_trio(ctx: commands.Context) -> None:
     try:
         assert bot is not None
         await wait_for_event_both(
-            "message", check=lambda msg: msg.clean_content.lower() == "yes", timeout=wait_time
+            "message",
+            check=lambda msg: msg.clean_content.lower() == "yes",
+            timeout=wait_time,
         )
     except TimeoutError:
         logger.warning(f"{ctx.author} ran hack_net but timed out.")
         await send_message_both(ctx, "Okay, game has not started.")
         return
 
-    await send_message_both(user, """Okay, this is your prompt. Just respond with a command and it gets run.
+    await send_message_both(
+        user,
+        """Okay, this is your prompt. Just respond with a command and it gets run.
     *Hint: Any commands, that are not recognized, get ignored.*
-    If you want to end the game at any time, enter `end` or `exit`""")
+    If you want to end the game at any time, enter `end` or `exit`""",
+    )
     await trio.sleep(0.5)
-    await send_message_both(user, base_prompt(user, current_progress))
-    try:
-        command = await wait_for_event_both('message', is_command_check, wait_time)
-        logger.success(f"{user.name} ran hack_net commmand {command.clean_content.lower()}")
-    except TimeoutError:
-        logger.warning(f"{user.name} played hack_net but timed out.")
+    prompt = base_prompt(name, current_progress)
+    prompt.append("```")
+    await send_message_both(user, "".join(prompt))
     await trio.sleep(0.5)
-    await send_message_both(user, "Thank you for your interest in playing, the rest is not implemented yet.")
+    await send_message_both(
+        user, "Thank you for your interest in playing, the rest is not implemented yet."
+    )
     raise NotImplementedError
 
 
-@commands.command(hidden=True, aliases=["hacknet"])
+@commands.command(hidden=True, aliases=["hacknet", "hack_run", "hackrun"])
 async def hack_net(ctx: commands.Context) -> None:
-    """Use this command to start the new mini game (ps. this is first step command of Easter egg)."""
+    """Use this command to start the new WIP mini-game (ps. this is first step command of Easter egg)."""
     await trio_as_aio(hacknet_trio)(ctx)
 
 
@@ -912,11 +1165,12 @@ all_commands.append(hack_net)
 
 
 @commands.command(hidden=False)
-async def probe(ctx):
-    """Use this command to check for open ports (ps. this is first step command of Easter egg)"""
-    await ctx.send(
+async def probe(ctx: commands.Context) -> None:
+    """Use this command to check for open ports (ps. this is first step command of Easter egg)."""
+    await send_message_both(
+        ctx,
         """>1_OPEN_PORT_HAD_BEEN_FOUND
-    >USE_ssh_TO_CRACK_IT"""
+    >USE_ssh_TO_CRACK_IT""",
     )
 
 
@@ -924,11 +1178,12 @@ all_commands.append(probe)
 
 
 @commands.command(hidden=True)
-async def ssh(ctx):
-    """This command hacks the port"""
-    await ctx.send(
+async def ssh(ctx: commands.Context) -> None:
+    """This command hacks the port."""
+    await send_message_both(
+        ctx,
         """>CRACKING_SUCCESSFUL
-    >USE_porthack_TO_GAIN_ACCESS"""
+    >USE_porthack_TO_GAIN_ACCESS""",
     )
 
 
@@ -936,11 +1191,12 @@ all_commands.append(ssh)
 
 
 @commands.command(hidden=True)
-async def porthack(ctx):
+async def porthack(ctx: commands.Context) -> None:
     """This command lets you inside"""
-    await ctx.send(
+    await send_message_both(
+        ctx,
         """>HACK_SUCCESSFUL
-    >USE_ls_TO_ACCESS_FILES"""
+    >USE_ls_TO_ACCESS_FILES""",
     )
 
 
@@ -948,45 +1204,52 @@ all_commands.append(porthack)
 
 
 @commands.command(hidden=True)
-async def ls(ctx):
+async def ls(ctx: commands.Context) -> None:
     """This command scans bot and lets you into files of bot"""
-    await ctx.send(
+    await send_message_both(
+        ctx,
         """>1_DIRECTORY_FOUND
     >DIRECTORY:home
-    >USE_cdhome_TO_ACCESS_FILES"""
+    >USE_cdhome_TO_ACCESS_FILES""",
     )
 
 
 all_commands.append(ls)
 
 
-@commands.command(hidden=True)
-async def cdhome(ctx):
+@commands.command(hidden=True, name="cdhome", aliases=["cd_home"])
+async def cd_home(ctx: commands.Context) -> None:
     """This command scans existing folders of bot and let's you access folder"""
-    await ctx.send(
+    await send_message_both(
+        ctx,
         """>ONE_DIRECTORY_FOUND
     >File: README.txt
-    >USE_catREADME_TO_VIEW_FILE_CONTENTS"""
+    >USE_catREADME_TO_VIEW_FILE_CONTENTS""",
     )
 
 
-all_commands.append(cdhome)
+all_commands.append(cd_home)
 
 
-@commands.command(hidden=True)
-async def catREADME(ctx):
+# noinspection SpellCheckingInspection
+@commands.command(
+    hidden=True,
+    name="catREADME",
+    aliases=["cat_readme", "cat_README.txt", "catREADME.txt"],
+)
+async def cat_readme(ctx: commands.Context):
     """This command shows what's inside of file"""
     await ctx.send(
         """VIEWING_File:README.txt
     >Congratz! You found Hacknet Easter egg;
     >The Easter egg code was written by: Gh0st4rt1st a.k.a Gr3ta;
     >Code was edited by: gfrewqpoiu;
-    >The Easter egg code is based on Hacknet game;
+    >The Easter egg code is based on the Hacknet game;
     >Have a nice day! *Gh0st4rt1st* *x0x0* """
     )
 
 
-all_commands.append(catREADME)
+all_commands.append(cat_readme)
 
 
 async def repeat_message_trio(
@@ -994,31 +1257,32 @@ async def repeat_message_trio(
     message: str,
     amount: int = 10,
     sleep_time: int = 30,
-    tts: bool = True,
+    use_tts: bool = True,
 ) -> None:
-    """This repeats a given message amount times with a sleep_time second break in between."""
+    """This repeats a given message amount times with a sleep_time second break in between.
+    Can ONLY be called from trio. (for now)."""
     if amount < 1:
         raise ValueError("Amount must be at least 1.")
     if sleep_time < 0.5:
         raise ValueError("Must sleep for at least 0.5 seconds between messages.")
     run = 0
     async for _ in trio_util.periodic(sleep_time):
-        await send_message_both(ctx, message, tts=tts)
+        await send_message_both(ctx, message, tts=use_tts)
         run += 1
         if run >= amount:
             break
 
 
 @commands.command(hidden=True, name="annoyeveryone")
-async def annoy_everyone(ctx: commands.Context):
+async def annoy_everyone(ctx: commands.Context) -> None:
     """This is just made to annoy people."""
     await trio_as_aio(repeat_message_trio)(
         ctx,
         "Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow "
         "Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",
-        10,
-        30,
-        True,
+        amount=10,
+        sleep_time=30,
+        use_tts=True,
     )
 
 
@@ -1026,23 +1290,24 @@ all_commands.append(annoy_everyone)
 
 
 @commands.command(hidden=False)
-async def tts(ctx: commands.Context):
+async def tts(ctx: commands.Context) -> None:
     """Says a funny tts phrase once."""
     await trio_as_aio(repeat_message_trio)(
         ctx,
         "Don't you just hate it when your cat wakes you up like this? Meow. Meow. "
         "Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. "
         "Meow. Meow. Meow. Meow. Meow. Meow.",
-        1,
-        20,
-        True,
+        amount=1,
+        sleep_time=20,
+        use_tts=True,
     )
 
 
 all_commands.append(tts)
 
 
-async def _add_quote_trio(ctx: commands.Context, keyword: str, quote_text: str):
+async def _add_quote_trio(ctx: commands.Context, keyword: str, quote_text: str) -> None:
+    """Actually adds a quote to the database using trio."""
     if ctx.message.guild is None:
         raise ValueError("We don't have any guild ID!")
     quote = Quote(
@@ -1052,12 +1317,15 @@ async def _add_quote_trio(ctx: commands.Context, keyword: str, quote_text: str):
         authorId=ctx.author.id,
     )
     await trio.to_thread.run_sync(quote.save)
-    # The reasoning for moving it to a seperate thread is to not block the main loop for database access.
+    logger.success(
+        f"Added quote {keyword.lower()} with text: {quote_text} for guild: {ctx.message.guild} by {ctx.author.name}"
+    )
+    # The reasoning for moving it to a separate thread is to not block the main loop for database access.
 
 
 @commands.command(aliases=["addq"])
 @commands.has_permissions(manage_messages=True)
-async def addquote(ctx, keyword: str, *, quote_text: str):
+async def addquote(ctx: commands.Context, keyword: str, *, quote_text: str) -> None:
     """Adds a quote to the database.
 
     Specify the keyword in "" if it has spaces in it.
@@ -1065,7 +1333,13 @@ async def addquote(ctx, keyword: str, *, quote_text: str):
     if len(keyword) < 1 or len(quote_text) < 1:
         await ctx.send("Keyword or quote text missing")
         return
-    if keyword[0] in punctuation or quote_text[0] in punctuation:
+    assert bot is not None
+    if (
+        keyword[0] in punctuation
+        or quote_text[0] in punctuation
+        or keyword.startswith(bot.command_prefix)
+        or quote_text.startswith(bot.command_prefix)
+    ):
         await ctx.send(
             "Neither the Keyword nor the quote text can start with punctuation to avoid running bot commands."
         )
@@ -1079,8 +1353,10 @@ all_commands.append(addquote)
 
 @commands.command(aliases=["addgq", "addgquote"], name="addglobalquote", hidden=True)
 @is_in_owners()
-async def add_global_quote(ctx, keyword: str, *, quote_text: str):
-    """Adds a global quote to the database
+async def add_global_quote(
+    ctx: commands.Context, keyword: str, *, quote_text: str
+) -> None:
+    """Adds a global quote to the database.
 
     Specify the keyword in "" if it has spaces in it.
     Like this: addgq "key message" Reacting Text"""
@@ -1098,7 +1374,7 @@ async def add_global_quote(ctx, keyword: str, *, quote_text: str):
 
 @commands.command(hidden=False, aliases=["delq", "delquote"])
 @commands.has_permissions(manage_messages=True)
-async def deletequote(ctx, keyword: str):
+async def deletequote(ctx: commands.Context, keyword: str) -> None:
     """Deletes the quote with the given keyword.
 
     If the keyword has spaces in it, it must be quoted like this:
@@ -1118,8 +1394,8 @@ all_commands.append(deletequote)
 
 
 @commands.command(hidden=False, aliases=["liqu"], name="listquotes")
-async def list_quotes(ctx):
-    """Lists all quotes on the current server"""
+async def list_quotes(ctx: commands.Context) -> None:
+    """Lists all quotes on the current server."""
     result = ""
     if ctx.guild is None:
         await ctx.send("You cannot run this command in a PM Channel.")
@@ -1128,7 +1404,7 @@ async def list_quotes(ctx):
     results = await trio_as_aio(trio.to_thread.run_sync)(query.execute)
     for quote in results:
         result = result + str(quote.keyword) + "; "
-    if result:
+    if result != "":
         await ctx.send(result)
     else:
         await ctx.send("I couldn't find any quotes on this server.")
@@ -1138,8 +1414,8 @@ all_commands.append(list_quotes)
 
 
 @commands.command(hidden=True, aliases=["eval"])
-@is_main_owner()
-async def evaluate(ctx, *, message: str):
+@is_in_owners()
+async def evaluate(ctx: commands.Context, *, message: str) -> None:
     """Evaluates an arbitrary python expression.
 
     Checking a variable can be done with return var."""
@@ -1158,22 +1434,28 @@ async def evaluate(ctx, *, message: str):
 all_commands.append(evaluate)
 
 
-@commands.command(hidden=True, aliases=["leaveserver, leave"])
+@commands.command(hidden=True, aliases=["leave_server, leave", "leaveguild"])
 @is_in_owners()
-async def leaveguild(ctx, id: int):
+async def leave_guild(ctx: commands.Context, guild_id: int) -> None:
     """Leaves the server with the given ID."""
     assert bot is not None
-    guild = bot.get_guild(id)
-    await guild.leave()
-    await ctx.send("I left that Guild.")
+    try:
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            raise ValueError("Couldn't find a guild with that ID that I am a part of.")
+        await guild.leave()
+        await ctx.send("I left that Guild.")
+    except DiscordException as ex:
+        logger.exception(ex)
+        raise ex
 
 
-all_commands.append(leaveguild)
+all_commands.append(leave_guild)
 
 
 @commands.command(hidden=False)
-async def glitch(ctx: commands.Context):
-    "The second Easter Egg"
+async def glitch(ctx: commands.Context) -> None:
+    """The second Easter Egg"""
     assert bot is not None
     await ctx.send(
         """Who created Walkers Join book?
@@ -1210,7 +1492,7 @@ all_commands.append(glitch)
 
 @commands.command(hidden=True)
 @is_in_owners()
-async def help2(ctx: commands.Context):
+async def help2(ctx: commands.Context) -> None:
     """Modified Help Command that shows all commands."""
     assert bot is not None
     try:
@@ -1225,19 +1507,21 @@ async def help2(ctx: commands.Context):
         mapping = cmd.get_bot_mapping()
         injected = cmd.send_bot_help
         try:
-            return await injected(mapping)
-        except discord.DiscordException as e:
-            await cmd.on_help_command_error(ctx, e)
-            return None
+            await injected(mapping)
+        except discord.DiscordException as ex:
+            logger.exception(ex)
+            await cmd.on_help_command_error(ctx, ex)
     finally:
         bot.help_command.show_hidden = False
+
 
 all_commands.append(help2)
 
 
 @aio_as_trio  # This makes the code in this function, which is written in asyncio, callable from trio.
-async def setup_bot():
+async def setup_bot() -> None:
     global bot
+    assert sniffio.current_async_library() == "asyncio"
     bot = commands.Bot(
         command_prefix=settings.get("prefix", "."),
         description=settings.get("Bot Description", "S.A.I.L"),
@@ -1252,7 +1536,8 @@ async def setup_bot():
         bot.add_command(command)
 
 
-async def cycle_playing_status_trio() -> None:
+async def cycle_playing_status_trio(period: int = 5 * 60) -> None:
+    """Cycles the playing status of the bot every period seconds."""
     statuses = [
         "making fun of Butler bot >:D",
         "poking Sky :p",
@@ -1266,7 +1551,6 @@ async def cycle_playing_status_trio() -> None:
         "screeching at Mee6 bot >:o",
         "Butler bot is rude >:(",
     ]
-    period = 5 * 60
     await trio.sleep(15)
     assert bot is not None
     async for _ in trio_util.periodic(period):
@@ -1285,14 +1569,22 @@ async def cycle_playing_status_trio() -> None:
 
 @aio_as_trio
 async def logging_task():
+    """Sends a log message to the log channel."""
+    assert sniffio.current_async_library() == "asyncio"
     while True:
         message = await logging_queue.get()
         if not shutting_down.value:
-            await send_message_both(log_channel, message)
+            await send_message_both(log_channel, message, True)
             await asyncio.sleep(3)
+        else:
+            break
 
 
 async def main() -> None:
+    """This is the start point, this starts the bot and everything else. (trio)
+
+    This function is using trio even though it doesn't end in _trio because main is a standardized name for the
+    main entry point into the code."""
     global global_nursery, logging_queue
     # This is a trio function, so we can call trio stuff directly, but for starting asyncio functions we need a loop.
     async with trio_asyncio.open_loop() as loop:
@@ -1316,35 +1608,48 @@ async def main() -> None:
                 shutting_down.value = True
                 logger.warning("Logging out the bot.")
                 await aio_as_trio(bot.logout)
+                raise SystemExit
         finally:
             logger.debug("Closing the Database connection.")
             await trio.to_thread.run_sync(db.close)
             await aio_as_trio(logger.complete)
 
-if __name__ == '__main__':
-    try:
-        if debugging:
-            logger.add(
-                "Gretabot_debug.log",
-                rotation="00:00",
-                retention="1 week",
-                backtrace=True,
-                diagnose=True,
-                enqueue=True,
-            )
-        else:
-            logger.add(
-                "Gretabot.log",
-                rotation="00:00",
-                retention="1 week",
-                backtrace=False,
-                diagnose=False,
-                enqueue=True,
-            )
-        trio.run(main)
-    except DiscordException as e:
-        logger.error(e)
-        raise ValueError(
-            "Couldn't log in with the given credentials, please check those in config.ini"
-            " and your connection and try again!"
+
+if __name__ == "__main__":
+    """The code here only runs when you run this file using python bot.py"""
+    if debugging:
+        logger.add(  # Here we add a logger to a log file.
+            "Gretabot_debug.log",  # filename
+            rotation="00:00",  # when should a new file be opened
+            retention="1 week",  # how long to keep old files before they are deleted.
+            backtrace=True,  # That shows all the functions that called the function that errored.
+            diagnose=True,  # This means, show all variables when a Error occurs
+            enqueue=True,  # Send all messages into a queue first, that is faster.
         )
+    else:
+        logger.add(
+            "Gretabot.log",
+            rotation="00:00",
+            retention="1 week",
+            backtrace=False,
+            diagnose=False,
+            enqueue=True,
+        )
+
+    for attempt in Retrying(  # We will retry this part of the code when we get an error.
+        wait=wait_fixed(60),  # Wait for 60 seconds before retrying.
+        retry=(
+            retry_if_exception_type(aiohttp.ClientConnectionError)
+            | retry_if_exception_type(trio.TrioInternalError)
+        ),
+        reraise=True,
+    ):
+        with attempt:
+            try:
+                trio.run(main)
+            except DiscordException as e:
+                logger.exception(e)
+                raise ValueError(
+                    "Couldn't log in with the given credentials, please check those in config.ini"
+                    " and your connection and try again!"
+                )

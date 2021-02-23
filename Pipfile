@@ -8,6 +8,7 @@ ipython = "*"
 trio-typing = "*"
 mypy = "*"
 black = {extras = ["d"], version = "*"}
+"discord.py-stubs" = "*"
 
 [packages]
 peewee = "*"
@@ -23,6 +24,7 @@ cchardet = "*"
 brotlipy = "*"
 trio-parallel = "*"
 trimeter = {editable = true, git = "https://github.com/python-trio/trimeter.git"}
+perf-timer = "*"
 
 [requires]
 python_version = "3.9"

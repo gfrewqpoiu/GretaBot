@@ -4,6 +4,8 @@ from loguru import logger
 
 
 class InterceptHandler(logging.Handler):
+    """This class takes messages from a logging.Logger and converts it for usage with loguru."""
+
     def emit(self, record):
         # Get corresponding Loguru level if it exists
         try:
