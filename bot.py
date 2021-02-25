@@ -2,9 +2,6 @@
 from __future__ import annotations
 import sys
 import os
-
-import aiohttp
-
 from checks import *
 import logging
 import subprocess
@@ -20,6 +17,7 @@ import warnings
 import time
 
 try:  # These are mandatory.
+    import aiohttp
     import discord
     from discord.ext import commands
     from discord import utils
@@ -209,9 +207,10 @@ async def set_status_text_both(message: str) -> None:
     # noinspection PyArgumentList
     game = discord.Game(message)
     try:
-        if sniffio.current_async_library() == "asyncio":
+        lib = sniffio.current_async_library()
+        if lib == "asyncio":
             await bot.change_presence(activity=game)
-        elif sniffio.current_async_library() == "trio":
+        elif lib == "trio":
             await aio_as_trio(bot.change_presence)(activity=game)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async context.", RuntimeWarning)
@@ -294,10 +293,13 @@ async def wait_for_event_both(
     """
     assert bot is not None
     try:
-        if sniffio.current_async_library() == "asyncio":
+        lib = sniffio.current_async_library()
+        if lib == "asyncio":
             return await bot.wait_for(event, timeout=timeout, check=check)
-        elif sniffio.current_async_library() == "trio":
+        elif lib == "trio":
             return await aio_as_trio(wait_for_event_both)(event, check, timeout)
+        else:
+            raise RuntimeError("Not using asyncio or trio!")
     except sniffio.AsyncLibraryNotFoundError:
         raise RuntimeError("Not in async Context.")
     except asyncio.TimeoutError:
@@ -1646,7 +1648,9 @@ if __name__ == "__main__":
             enqueue=True,
         )
 
-    for attempt in Retrying(  # We will retry this part of the code when we get an error.
+    for (
+        attempt
+    ) in Retrying(  # We will retry this part of the code when we get an error.
         wait=wait_fixed(60),  # Wait for 60 seconds before retrying.
         retry=(
             retry_if_exception_type(aiohttp.ClientConnectionError)
