@@ -96,7 +96,7 @@ except ValueError:
     log_channel_id = None
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.11.0"
+bot_version: str = "0.11.1"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = (
