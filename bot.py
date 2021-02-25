@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 import sys
 import os
 
@@ -96,7 +97,7 @@ except ValueError:
     log_channel_id = None
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.11.2"
+bot_version: str = "0.11.3"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = (
@@ -134,6 +135,7 @@ all_events: List[
     Callable
 ] = []  # This will be a list of all the events that the bot should listen to.
 
+# noinspection SpellCheckingInspection
 global_quotes: Dict[
     str, str
 ] = {  # This is a dictionary of all the quotes that should work on any server.
@@ -156,7 +158,10 @@ shutting_down = (
 )  # This is basically just a boolean value, that can be waited for.
 started_up = trio_util.AsyncBool()
 global_nursery: trio.Nursery  # A nursery is a way to run multiple things at the same time. This will be set later.
-logging_queue: asyncio.Queue
+# logging_queue: asyncio.Queue
+log_send_channel: trio.MemorySendChannel[str]
+log_recv_channel: trio.MemoryReceiveChannel[str]
+log_send_channel, log_recv_channel = trio.open_memory_channel(10)
 
 
 def input_to_bool(text: str) -> Optional[bool]:
@@ -181,6 +186,7 @@ async def sleep_both(sleep_time: float) -> None:
     """
     try:
         lib = sniffio.current_async_library()
+        logger.debug(f"Called sleep from {lib} for {sleep_time} seconds.")
         if lib == "asyncio":
             await asyncio.sleep(sleep_time)
         elif lib == "trio":
@@ -361,8 +367,9 @@ def log_to_channel(message: str):
                 if debugging:
                     print(f"Logging to Discord from Library: {library}")
                 try:
-                    logging_queue.put_nowait(message)
-                except asyncio.QueueFull:
+                    # logging_queue.put_nowait(message)
+                    log_send_channel.send_nowait(message)
+                except trio.WouldBlock:
                     pass
         else:
             pass
@@ -420,7 +427,7 @@ async def on_ready_trio() -> None:
             nursery.start_soon(_add_global_quote_trio, keyword, text, None)
         nursery.start_soon(setup_log_channel)
     started_up.value = True
-    global_nursery.start_soon(logging_task)
+    global_nursery.start_soon(logging_task_trio)
     logger.debug("Done with setup in trio.")
 
 
@@ -490,6 +497,7 @@ async def on_message(message: discord.Message) -> None:
 
     logger.debug(f"Processing Message with ID {message.id}")
 
+    # noinspection SpellCheckingInspection
     def booleanable(old_message: discord.Message) -> bool:
         message_text = old_message.clean_content.lower()
         agreement = ["yes", "y", "yeah", "ja", "j", "no", "n", "nah", "nein"]
@@ -1077,7 +1085,7 @@ async def hacknet_trio(ctx: commands.Context) -> None:
         try:
             command = await wait_for_event_both("message", is_command_check, wait_time)
             logger.success(
-                f"{user.name} ran hack_net commmand {command.clean_content.lower()}"
+                f"{user.name} ran hack_net command {command.clean_content.lower()}"
             )
             return command.clean_content.lower()
         except TimeoutError:
@@ -1568,15 +1576,16 @@ async def cycle_playing_status_trio(period: int = 5 * 60) -> None:
             break
 
 
-@aio_as_trio
-async def logging_task():
+async def logging_task_trio():
     """Sends a log message to the log channel."""
-    assert sniffio.current_async_library() == "asyncio"
+    assert sniffio.current_async_library() == "trio"
     while True:
-        message = await logging_queue.get()
+        # message = await aio_as_trio(logging_queue.get)()
+        message = await log_recv_channel.receive()
         if not shutting_down.value:
-            await send_message_both(log_channel, message, True)
-            await asyncio.sleep(3)
+            if log_channel is not None:
+                await send_message_both(log_channel, message, True)
+            await trio.sleep(3)
         else:
             break
 
@@ -1586,10 +1595,11 @@ async def main() -> None:
 
     This function is using trio even though it doesn't end in _trio because main is a standardized name for the
     main entry point into the code."""
-    global global_nursery, logging_queue
+    global global_nursery
     # This is a trio function, so we can call trio stuff directly, but for starting asyncio functions we need a loop.
     async with trio_asyncio.open_loop() as loop:
         # Now we can use aio_as_trio to jump to asyncio.
+        assert loop == asyncio.get_event_loop()
         try:
             async with trio.open_nursery() as nursery:
                 # This is a nursery, it allows us to start Tasks that should run at the same time.
@@ -1601,7 +1611,6 @@ async def main() -> None:
                 logger.debug("Database is initialized.")
                 start_cmd = partial(bot.start, loginID, reconnect=True)
                 global_nursery = nursery
-                logging_queue = asyncio.Queue(10)
                 nursery.start_soon(aio_as_trio(start_cmd))
                 nursery.start_soon(cycle_playing_status_trio)
         except KeyboardInterrupt:
