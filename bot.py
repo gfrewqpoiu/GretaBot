@@ -199,7 +199,7 @@ async def set_status_text_both(message: str) -> None:
     assert bot is not None
     if not started_up.value:
         return
-    logger.debug(f"Setting playing status to {message}")
+    logger.info(f"Setting playing status to {message}")
     # noinspection PyArgumentList
     game = discord.Game(message)
     try:
@@ -1555,7 +1555,7 @@ async def cycle_playing_status_trio(period: int = 5 * 60) -> None:
     assert bot is not None
     async for _ in trio_util.periodic(period):
         if shutting_down.value:
-            break
+            continue
         # noinspection PyBroadException
         try:
             await set_status_text_both(random.choice(statuses))
