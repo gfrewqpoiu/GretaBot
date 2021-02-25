@@ -96,7 +96,7 @@ except ValueError:
     log_channel_id = None
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.11.1"
+bot_version: str = "0.11.2"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = (
@@ -199,7 +199,7 @@ async def set_status_text_both(message: str) -> None:
     assert bot is not None
     if not started_up.value:
         return
-    logger.info(f"Setting playing status to {message}")
+    logger.debug(f"Setting playing status to {message}")
     # noinspection PyArgumentList
     game = discord.Game(message)
     try:
