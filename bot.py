@@ -427,6 +427,7 @@ async def on_ready_trio() -> None:
 async def on_ready() -> None:
     """This runs whenever the bot is ready to accept commands."""
     await trio_as_aio(on_ready_trio)()
+    shutting_down.value = False
     logger.success("Done with bot setup.")
 
 
