@@ -52,6 +52,8 @@ try:  # These are mandatory.
     from discord_slash.utils import manage_commands
     from async_generator import aclosing
     import attr
+    import anyio
+    from anyio.abc.tasks import TaskGroup
 except ImportError:
     raise ImportError(
         "You have some dependencies missing, please install them with pipenv install --deploy"
@@ -121,6 +123,9 @@ except ValueError:
 if log_channel_id == 0:
     log_channel_id = None
 
+bot_version: str = "0.12.0"
+main_channel: Optional[discord.TextChannel] = None
+log_channel: Optional[discord.TextChannel] = None
 intents = (
     discord.Intents.default()
 )  # This basically tells the bot, for what events it should ask Discord.
@@ -182,7 +187,7 @@ shutting_down = (
     trio_util.AsyncBool()
 )  # This is basically just a boolean value, that can be waited for.
 started_up = trio_util.AsyncBool()
-global_nursery: trio.Nursery  # A nursery is a way to run multiple things at the same time. This will be set later.
+global_task_group: TaskGroup  # A nursery is a way to run multiple things at the same time. This will be set later.
 log_send_channel: trio.MemorySendChannel[str]
 log_recv_channel: trio.MemoryReceiveChannel[str]
 log_send_channel, log_recv_channel = trio.open_memory_channel(10)
@@ -211,10 +216,7 @@ async def sleep_both(sleep_time: float) -> None:
     try:
         lib = sniffio.current_async_library()
         logger.debug(f"Called sleep from {lib} for {sleep_time} seconds.")
-        if lib == "asyncio":
-            await asyncio.sleep(sleep_time)
-        elif lib == "trio":
-            await trio.sleep(sleep_time)
+        await anyio.sleep(sleep_time)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Sleep was called without async context.")
         time.sleep(sleep_time)
@@ -240,7 +242,7 @@ async def set_status_text_both(message: str) -> None:
             await aio_as_trio(bot.change_presence)(activity=game)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async context.", RuntimeWarning)
-        global_nursery.start_soon(
+        await global_task_group.spawn(
             aio_as_trio, partial(bot.change_presence, activity=game)
         )
 
@@ -314,7 +316,7 @@ async def send_message_both(
         logger.warning(
             f"Sending message {message} to {str(target)} from outside async context."
         )
-        global_nursery.start_soon(aio_as_trio, task)
+        await global_task_group.spawn(aio_as_trio, task)
 
 
 async def slash_respond_both(ctx: Context, eat_user_message: bool = False) -> None:
@@ -481,7 +483,7 @@ async def on_ready_trio() -> None:
             nursery.start_soon(_add_global_quote_trio, keyword, text, None)
         nursery.start_soon(setup_log_channel)
     started_up.value = True
-    global_nursery.start_soon(logging_task_trio)
+    await global_task_group.spawn(logging_task_trio)
     logger.debug("Done with setup in trio.")
 
 
@@ -2134,13 +2136,13 @@ async def main() -> None:
 
     This function is using trio even though it doesn't end in _trio because main is a standardized name for the
     main entry point into the code."""
-    global global_nursery
+    global global_task_group
     # This is a trio function, so we can call trio stuff directly, but for starting asyncio functions we need a loop.
     async with trio_asyncio.open_loop() as loop:
         # Now we can use aio_as_trio to jump to asyncio.
         assert loop == asyncio.get_event_loop()
         try:
-            async with trio.open_nursery() as nursery:
+            async with anyio.create_task_group() as task_group:
                 # This is a nursery, it allows us to start Tasks that should run at the same time.
                 await setup_bot()
                 assert bot is not None
@@ -2149,9 +2151,9 @@ async def main() -> None:
                 await trio.to_thread.run_sync(db.create_tables, [Quote])
                 logger.debug("Database is initialized.")
                 start_cmd = partial(bot.start, loginID, reconnect=True)
-                global_nursery = nursery
-                nursery.start_soon(aio_as_trio(start_cmd))
-                nursery.start_soon(cycle_playing_status_trio)
+                global_task_group = task_group
+                await task_group.spawn(aio_as_trio(start_cmd))
+                await task_group.spawn(cycle_playing_status_trio)
         except KeyboardInterrupt:
             if bot is not None:
                 shutting_down.value = True
