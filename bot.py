@@ -7,7 +7,7 @@ import logging
 import subprocess
 
 # noinspection PyUnresolvedReferences
-from typing import Optional, List, Union, Any, Tuple, Callable, Dict, Iterator
+from typing import Optional, List, Union, Any, Tuple, Callable, Dict, Iterator, Final
 from functools import partial
 from enum import IntEnum
 from datetime import timedelta
@@ -95,7 +95,7 @@ except ValueError:
     log_channel_id = None
 if log_channel_id == 0:
     log_channel_id = None
-bot_version: str = "0.11.3"
+bot_version: Final[str] = "0.11.3"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 intents = (
@@ -156,7 +156,6 @@ shutting_down = (
 )  # This is basically just a boolean value, that can be waited for.
 started_up = trio_util.AsyncBool()
 global_nursery: trio.Nursery  # A nursery is a way to run multiple things at the same time. This will be set later.
-# logging_queue: asyncio.Queue
 log_send_channel: trio.MemorySendChannel[str]
 log_recv_channel: trio.MemoryReceiveChannel[str]
 log_send_channel, log_recv_channel = trio.open_memory_channel(10)
@@ -630,6 +629,7 @@ async def on_disconnect() -> None:
     global log_channel
     log_channel = None
     started_up.value = False
+    shutting_down.value = True
     logger.warning("Got disconnected from Discord.")
 
 
@@ -652,15 +652,14 @@ async def shutdown(ctx: commands.Context) -> None:
     """Shuts the bot down.
 
     Only works for the bot owners."""
-    await ctx.send("Shutting down!", delete_after=3)
-    await asyncio.sleep(5)
+    await send_message_both(ctx, "Shutting down!", delete_after=3)
+    await sleep_both(5)
     shutting_down.value = True
     logger.warning(f"Shutting down on request of {ctx.author.name}!")
-    await asyncio.sleep(3)
+    await sleep_both(3)
     db.close()
     try:
         assert bot is not None
-        await bot.close()
         raise SystemExit
     except discord.DiscordException:
         sys.exit(1)
@@ -703,11 +702,12 @@ async def restart(ctx: commands.Context) -> None:
     await asyncio.sleep(5)
     logger.warning(f"Restarting on request of {ctx.author.name}!")
     db.close()
+    await trio_as_aio(log_send_channel.aclose)
     # noinspection PyBroadException
     try:
         _restart()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception(e)
 
 
 all_commands.append(restart)
@@ -1633,7 +1633,7 @@ if __name__ == "__main__":
         logger.add(  # Here we add a logger to a log file.
             "Gretabot_debug.log",  # filename
             rotation="00:00",  # when should a new file be opened
-            retention="1 week",  # how long to keep old files before they are deleted.
+            retention="3 days",  # how long to keep old files before they are deleted.
             backtrace=True,  # That shows all the functions that called the function that errored.
             diagnose=True,  # This means, show all variables when a Error occurs
             enqueue=True,  # Send all messages into a queue first, that is faster.
