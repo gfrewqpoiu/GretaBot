@@ -316,7 +316,7 @@ async def send_message_both(
         global_nursery.start_soon(aio_as_trio, task)
 
 
-async def slash_respond_both(ctx: Context, eat_user_message: bool = True) -> None:
+async def slash_respond_both(ctx: Context, eat_user_message: bool = False) -> None:
     if isinstance(ctx, SlashContext):
         library = sniffio.current_async_library()
         if library == "asyncio":
@@ -670,7 +670,7 @@ all_events.append(on_disconnect)
 async def invite_bot(ctx: Context) -> None:
     """Gives a link to invite the bot."""
     assert bot is not None
-    await slash_respond_both(ctx)
+    await slash_respond_both(ctx, False)
     await send_message_both(
         ctx,
         "".join(
@@ -697,7 +697,7 @@ all_slash_commands.append(
 @commands.command(hidden=True)
 async def github(ctx: Context) -> None:
     """Gives a link to the code of this bot."""
-    await slash_respond_both(ctx)
+    await slash_respond_both(ctx, False)
     await send_message_both(
         ctx,
         f"""Here is the github link to my code:
@@ -802,7 +802,10 @@ async def restart(ctx: Context) -> None:
     await asyncio.sleep(5)
     logger.warning(f"Restarting on request of {ctx.author.name}!")
     db.close()
-    await trio_as_aio(log_send_channel.aclose)
+    try:
+        await trio_as_aio(log_send_channel.aclose)
+    except discord.NotFound:
+        pass
     # noinspection PyBroadException
     try:
         _restart()
@@ -829,7 +832,7 @@ async def game_title(ctx: Context, *, message: str) -> None:
 
     Only works for bot owners."""
     assert bot is not None
-    await slash_respond_both(ctx)
+    await slash_respond_both(ctx, False)
     # noinspection PyArgumentList
     game = discord.Game(message)
     await bot.change_presence(activity=game)
@@ -879,6 +882,7 @@ all_slash_commands.append(
 )
 
 
+# noinspection DuplicatedCode
 @commands.command(hidden=True)
 async def say(ctx: Context, *, message: str) -> None:
     """Repeats what you said."""
@@ -915,11 +919,14 @@ all_slash_commands.append(
 async def say2(ctx: commands.Context, *, message: str) -> None:
     """Repeats what you said and removes the command message."""
     logger.debug(f"Running Say2 command with the message: {message}")
+    await slash_respond_both(ctx, True)
     try:
         await ctx.message.delete()
     except discord.Forbidden:
         await send_message_both(ctx, "I cannot delete messages in this channel!")
-    out = [f"{ctx.author.name} ran say Command with the message: {message}"]
+    except AttributeError:
+        pass
+    out = [f"{ctx.author.name} ran say2 Command with the message: {message}"]
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
     out.append(f" in the channel {ctx.channel.name}.")
@@ -1075,7 +1082,7 @@ all_slash_commands.append(
 @commands.guild_only()
 async def purge(ctx: Context, amount: int) -> None:
     """Removes the given amount of messages from this channel."""
-    await slash_respond_both(ctx)
+    await slash_respond_both(ctx, True)
     try:
         assert ctx.guild is not None
         await ctx.channel.purge(limit=(amount + 1))
@@ -2008,7 +2015,9 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    """The code here only runs when you run this file using python bot.py"""
+    """The code here only runs when you run this file using `pipenv run python bot.py`
+
+    Or the shortcut `pipenv run bot`"""
     if debugging:
         logger.add(  # Here we add a logger to a log file.
             "Gretabot_debug.log",  # filename
