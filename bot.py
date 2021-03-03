@@ -6,6 +6,8 @@ from checks import *
 import logging
 import subprocess
 
+# TODO: IMPORTANT! Do not merge into stable or beta yet! Checks don't work properly.
+
 # noinspection PyUnresolvedReferences
 from typing import (
     Optional,
@@ -741,6 +743,7 @@ async def shutdown(ctx: Context) -> None:
     """Shuts the bot down.
 
     Only works for the bot owners."""
+    assert ctx.author.id in configOwner
     await send_message_both(ctx, "Shutting down!", delete_after=3)
     await sleep_both(5)
     shutting_down.value = True
@@ -764,6 +767,7 @@ all_commands.append(shutdown)
 async def update(ctx: Context) -> None:
     """Updates the bot with the newest Version from GitHub
     Only works for the bot owners."""
+    assert ctx.author.id in configOwner
     await slash_respond_both(ctx)
     await send_message_both(ctx, "Ok, I am updating from GitHub.")
     try:
@@ -797,6 +801,7 @@ async def restart(ctx: Context) -> None:
     """Restarts the bot.
 
     Only works for bot owners."""
+    assert ctx.author.id in configOwner
     await slash_respond_both(ctx)
     await send_message_both(ctx, "Restarting", delete_after=3)
     await asyncio.sleep(5)
@@ -832,6 +837,7 @@ async def game_title(ctx: Context, *, message: str) -> None:
 
     Only works for bot owners."""
     assert bot is not None
+    assert ctx.author.id in configOwner
     await slash_respond_both(ctx, False)
     # noinspection PyArgumentList
     game = discord.Game(message)
@@ -890,7 +896,8 @@ async def say(ctx: Context, *, message: str) -> None:
     out = [f"{ctx.author.name} ran say Command with the message: {message}"]
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
-    out.append(f" in the channel {ctx.channel.name}.")
+    if ctx.channel is not None:
+        out.append(f" in the channel {ctx.channel.name}.")
     logger.info("".join(out))
     await send_message_both(ctx, message)
 
@@ -915,9 +922,42 @@ all_slash_commands.append(
 
 # noinspection DuplicatedCode
 @commands.command(hidden=True)
+async def say3(ctx: SlashContext, *, message: str) -> None:
+    """Repeats what you said, but only to you."""
+    await slash_respond_both(ctx, True)
+    out = [f"{ctx.author.name} ran say3 Command with the message: {message}"]
+    if ctx.guild is not None:
+        out.append(f" in the guild {ctx.guild.name}")
+    if ctx.channel is not None:
+        out.append(f" in the channel {ctx.channel.name}.")
+    logger.info("".join(out))
+    await ctx.send(message, hidden=True)
+
+
+all_slash_commands.append(
+    SlashCommandInfo(
+        command=say3,
+        name="say3",
+        description="Repeats what you said, but only to you.",
+        options=[
+            manage_commands.create_option(
+                name="message",
+                description="What the bot should say.",
+                option_type=3,
+                required=True,
+            )
+        ],
+    )
+)
+
+
+# noinspection DuplicatedCode
+@commands.command(hidden=True)
 @commands.has_permissions(manage_messages=True)
-async def say2(ctx: commands.Context, *, message: str) -> None:
+async def say2(ctx: Context, *, message: str) -> None:
     """Repeats what you said and removes the command message."""
+    if ctx.guild is not None:
+        assert ctx.author.permissions_in(ctx.channel).manage_messages
     logger.debug(f"Running Say2 command with the message: {message}")
     await slash_respond_both(ctx, True)
     try:
@@ -929,7 +969,8 @@ async def say2(ctx: commands.Context, *, message: str) -> None:
     out = [f"{ctx.author.name} ran say2 Command with the message: {message}"]
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
-    out.append(f" in the channel {ctx.channel.name}.")
+    if ctx.channel is not None:
+        out.append(f" in the channel {ctx.channel.name}.")
     logger.info("".join(out))
     await send_message_both(ctx, message)
 
@@ -957,6 +998,8 @@ all_slash_commands.append(
 @commands.guild_only()
 async def set_channel(ctx: Context):
     """Sets the channel for PM messaging."""
+    assert ctx.guild is not None
+    assert ctx.author.id in configOwner
     global main_channel
     main_channel = ctx.channel
     assert main_channel is not None
@@ -983,6 +1026,8 @@ all_slash_commands.append(
 @commands.guild_only()
 async def kick(ctx: Context, user: discord.Member) -> None:
     """Kicks the specified User"""
+    assert ctx.guild is not None
+    assert ctx.author.permissions_in(ctx.channel).kick_members
     await slash_respond_both(ctx)
     if user is None:
         await send_message_both(ctx, "No user was specified.")
@@ -1024,6 +1069,8 @@ all_slash_commands.append(
 @commands.guild_only()
 async def ban(ctx: commands.Context, user: discord.Member) -> None:
     """Bans the specified User"""
+    assert ctx.guild is not None
+    assert ctx.author.permissions_in(ctx.channel).ban_members
     if user is None:
         await send_message_both(ctx, "No user was specified.")
         return
@@ -1082,6 +1129,8 @@ all_slash_commands.append(
 @commands.guild_only()
 async def purge(ctx: Context, amount: int) -> None:
     """Removes the given amount of messages from this channel."""
+    assert ctx.guild is not None
+    assert ctx.author.permissions_in(ctx.channel).manage_messages
     await slash_respond_both(ctx, True)
     try:
         assert ctx.guild is not None
@@ -1672,6 +1721,7 @@ async def addquote(ctx: Context, keyword: str, *, quote_text: str) -> None:
 
     Specify the keyword in "" if it has spaces in it.
     Like this: addquote "key message" Reacting Text"""
+    assert ctx.author.permissions_in(ctx.channel).manage_messages
     await slash_respond_both(ctx)
     if len(keyword) < 1 or len(quote_text) < 1:
         await send_message_both(ctx, "Keyword or quote text missing")
@@ -1725,6 +1775,7 @@ async def add_global_quote(
 
     Specify the keyword in "" if it has spaces in it.
     Like this: addgq "key message" Reacting Text"""
+    assert ctx.author.id in configOwner
     if len(keyword) < 1 or len(quote_text) < 1:
         await send_message_both(ctx, "Keyword or quote text missing")
         return
@@ -1750,6 +1801,8 @@ async def deletequote(ctx: Context, keyword: str) -> None:
     If the keyword has spaces in it, it must be quoted like this:
     deletequote "Keyword with spaces"
     Only works for people that can delete messages in this server."""
+    assert ctx.guild is not None
+    assert ctx.author.permissions_in(ctx.channel).manage_messages
     quote = Quote.get_or_none(
         Quote.guildId == ctx.guild.id, Quote.keyword == keyword.lower()
     )
@@ -1799,13 +1852,14 @@ async def evaluate(ctx: Context, *, message: str) -> None:
     """Evaluates an arbitrary python expression.
 
     Checking a variable can be done with return var."""
-    if ctx.message.author.id != 167311142744489984:
-        await send_message_both(
-            ctx,
-            """"This command is only for gfrewqpoiu.
-        It is meant for testing purposes only.""",
-        )
-        return
+    assert ctx.author.id in configOwner
+    # if ctx.message.author.id != 167311142744489984:
+    #     await send_message_both(
+    #         ctx,
+    #         """"This command is only for gfrewqpoiu.
+    #     It is meant for testing purposes only.""",
+    #     )
+    #     return
     embed = discord.Embed()
     embed.set_author(name="Result")
     embed.set_footer(text=eval(message))
@@ -1821,6 +1875,7 @@ all_commands.append(evaluate)
 async def leave_guild(ctx: Context, guild_id: int) -> None:
     """Leaves the server with the given ID."""
     assert bot is not None
+    assert ctx.author.id in configOwner
     try:
         guild = bot.get_guild(guild_id)
         if guild is None:
@@ -1880,6 +1935,7 @@ all_commands.append(glitch)
 async def help2(ctx: Context) -> None:
     """Modified Help Command that shows all commands."""
     assert bot is not None
+    assert ctx.author.id in configOwner
     try:
         bot.help_command.show_hidden = True
         cmd = bot.help_command

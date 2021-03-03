@@ -634,11 +634,11 @@
         },
         "discord.py-stubs": {
             "hashes": [
-                "sha256:1a9960998cd17cfe1d447d7ac3133982010b7a20913c5c0e17b4fa1be94c5233",
-                "sha256:43956bf7d6a28769bf854318b395dfd39dcac53f41c293b3b32de0bd7bf02ac7"
+                "sha256:42e527eb7db7c147a753ab4bd22f30fc561962d78937edfd53e94731584054ae",
+                "sha256:d35ec693369b3ee2d7918f48d0b15c55c1a55de82c0d6a15f6b90da222109718"
             ],
             "index": "pypi",
-            "version": "==1.6.0.1"
+            "version": "==1.6.0.2"
         },
         "idna": {
             "hashes": [
