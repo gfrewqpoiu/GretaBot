@@ -2006,6 +2006,7 @@ async def cycle_playing_status_trio(period: int = 5 * 60) -> None:
     ]
     await trio.sleep(15)
     assert bot is not None
+    await started_up.wait_value(True)
     async with aclosing(trio_util.periodic(period)) as periodic:
         async for _ in periodic:
             if shutting_down.value:
