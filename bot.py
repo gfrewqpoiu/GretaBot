@@ -1964,6 +1964,7 @@ all_commands.append(help2)
 async def setup_bot() -> None:
     global bot
     assert sniffio.current_async_library() == "asyncio"
+    # noinspection PyArgumentList
     bot = commands.Bot(
         command_prefix=settings.get("prefix", "."),
         description=settings.get("Bot Description", "S.A.I.L"),
