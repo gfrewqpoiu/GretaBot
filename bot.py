@@ -1960,6 +1960,83 @@ all_commands.append(help2)
 # This command should not get a / command version.
 
 
+async def _say_everywhere_trio(
+    ctx: Context, message: str, tts: bool = False, delete_after: int = 20
+):
+    def is_important_channel(channel: discord.TextChannel):
+        name = channel.name.lower()
+        if name.startswith("rule"):
+            return True
+        if name.startswith("welc"):
+            return True
+        if "announc" in name:
+            return True
+        if "offici" in name:
+            return True
+        if "partne" in name:
+            return True
+        if "verifi" in name:
+            return True
+        return False
+
+    for channel in ctx.guild.channels:
+        if isinstance(channel, discord.TextChannel) and not is_important_channel(
+            channel
+        ):
+            task = partial(
+                send_message_both,
+                channel,
+                message,
+                tts=tts,
+                delete_after=delete_after,
+                # allowed_mentions=discord.AllowedMentions(
+                #     everyone=False, users=[ctx.author], roles=False, replied_user=True
+                # ),
+            )
+            global_nursery.start_soon(task)
+
+
+@commands.command(hidden=True, name="sayeverywhere", aliases=["say_everywhere"])
+async def say_everywhere(
+    ctx: Context, *, message: str, tts: bool = False, delete_after: int = 20
+):
+    """Says the message everywhere on this server."""
+    await slash_respond_both(ctx, True)
+    assert ctx.guild is not None
+    assert ctx.author.id in configOwner
+    await trio_as_aio(_say_everywhere_trio)(ctx, message, tts, delete_after)
+
+
+all_commands.append(say_everywhere)
+all_slash_commands.append(
+    SlashCommandInfo(
+        command=say_everywhere,
+        name="sayeverywhere",
+        description="Says the message everywhere in this server (Owner Only)",
+        options=[
+            manage_commands.create_option(
+                name="message",
+                description="The message to send",
+                option_type=3,
+                required=True,
+            ),
+            manage_commands.create_option(
+                name="tts",
+                description="Whether to use tts",
+                option_type=5,
+                required=False,
+            ),
+            manage_commands.create_option(
+                name="delete_after",
+                description="When the messages should be deleted",
+                option_type=4,
+                required=False,
+            ),
+        ],
+    )
+)
+
+
 @aio_as_trio  # This makes the code in this function, which is written in asyncio, callable from trio.
 async def setup_bot() -> None:
     global bot
