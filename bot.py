@@ -29,6 +29,7 @@ import string
 import random
 import warnings
 import time
+import re
 
 try:  # These are mandatory.
     import aiohttp
@@ -1963,21 +1964,14 @@ all_commands.append(help2)
 async def _say_everywhere_trio(
     ctx: Context, message: str, tts: bool = False, delete_after: int = 20
 ):
-    def is_important_channel(channel: discord.TextChannel):
-        name = channel.name.lower()
-        if name.startswith("rule"):
-            return True
-        if name.startswith("welc"):
-            return True
-        if "announc" in name:
-            return True
-        if "offici" in name:
-            return True
-        if "partne" in name:
-            return True
-        if "verifi" in name:
-            return True
-        return False
+    important_patterns_startswith = ["rule", "welc"]
+    important_patterns_everywhere = ["announc", "offici", "partne", "verifi"]
+    important_patterns = [f"^{re.escape(i)}" for i in important_patterns_startswith]
+    important_patterns.extend(re.escape(i) for i in important_patterns_everywhere)
+    important_regex = re.compile("|".join(important_patterns), re.I)
+
+    def is_important_channel(channel: discord.TextChannel) -> bool:
+        return bool(important_regex.search(channel.name.lower()))
 
     for channel in ctx.guild.channels:
         if isinstance(channel, discord.TextChannel) and not is_important_channel(
