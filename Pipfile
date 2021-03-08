@@ -17,14 +17,14 @@ loguru = "*"
 trio = "*"
 httpx = {extras = ["http2"], version = "*"}
 sniffio = "*"
-trio-asyncio = "*"
 tenacity = "*"
 trio-util = "*"
 cchardet = "*"
 brotlipy = "*"
-trio-parallel = "*"
-trimeter = {editable = true, git = "https://github.com/python-trio/trimeter.git"}
-perf-timer = "*"
+# trio-parallel = "*"
+# trimeter = {editable = true, git = "https://github.com/python-trio/trimeter.git"}
+# perf-timer = "*"
+trio-asyncio = {editable = true, git = "https://github.com/python-trio/trio-asyncio.git"}
 
 [requires]
 python_version = "3.9"

@@ -21,6 +21,7 @@ def getconf() -> configparser.ConfigParser:
 
 def is_in_owners() -> Any:
     """Checks, whether the author of the command is in the Owner List."""
+
     def predicate(ctx: commands.Context) -> bool:
         return ctx.author.id in configOwner
 
@@ -29,6 +30,7 @@ def is_in_owners() -> Any:
 
 def is_main_owner() -> Any:
     """Checks whether the command is run by the main owner (the first one from the config)"""
+
     def predicate(ctx: commands.Context):
         return ctx.author.id == configOwner[0]
 
