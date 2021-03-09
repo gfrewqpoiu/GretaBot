@@ -1974,6 +1974,7 @@ async def _say_everywhere_trio(
     important_patterns.extend(re.escape(i) for i in important_patterns_everywhere)
     important_regex = re.compile("|".join(important_patterns), re.I)
 
+    # noinspection PyShadowingNames
     def is_important_channel(channel: discord.TextChannel) -> bool:
         return bool(important_regex.search(channel.name.lower()))
 
