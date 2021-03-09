@@ -2,11 +2,8 @@
 from __future__ import annotations
 import sys
 import os
-from checks import *
 import logging
 import subprocess
-
-# TODO: IMPORTANT! Do not merge into stable or beta yet! Checks don't work properly.
 
 # noinspection PyUnresolvedReferences
 from typing import (
@@ -62,6 +59,7 @@ except ImportError:
 
 from database import db, Quote
 from loguru_intercept import InterceptHandler
+from checks import *
 
 
 @attr.s(auto_attribs=True)
@@ -136,7 +134,7 @@ intents.members = True  # This allows us to get all members of a guild. Also pri
 punctuation = string.punctuation  # A list of all punctuation characters
 
 bot: Optional[commands.Bot] = None
-bot_version: Final[str] = "1.0.0-dev_slash_commands"
+bot_version: Final[str] = "1.0.0"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 
@@ -432,10 +430,10 @@ def log_to_channel(message: str) -> None:
     except DiscordException:
         pass
     except sniffio.AsyncLibraryNotFoundError:
-        # This happens when calling logger from trio flavored functions.
+        # This happens when calling logger from weird edge cases.
         # Sadly, nothing seems to be transferred to this state.
         # We just ignore the message in this case, it gets logged to file and console anyway.
-        pass
+        print(f"Logging to Discord failed for message: {message}")
 
 
 async def setup_channel_logger() -> Optional[int]:
@@ -526,6 +524,7 @@ def _get_quote_sync(guild: discord.Guild, text: str) -> Optional[str]:
     :param text: The keyword to search for
     :return: Either the found string, or None if nothing was found.
     """
+    logger.debug(f"Looking for quote with text: {text} in guild {guild.name}")
     quote = Quote.get_or_none(guild.id == Quote.guildId, text.lower() == Quote.keyword)
     if quote:
         return quote.result
@@ -533,6 +532,7 @@ def _get_quote_sync(guild: discord.Guild, text: str) -> Optional[str]:
         quote = Quote.get_or_none(-1 == Quote.guildId, text.lower() == Quote.keyword)
         if quote:
             return quote.result
+    logger.debug("No quote found.")
     return None
 
 
@@ -684,6 +684,7 @@ async def invite_bot(ctx: Context) -> None:
             ]
         ),
     )
+    logger.warning(f"{ctx.author.name} requested an invite for the bot!")
 
 
 all_commands.append(invite_bot)
@@ -706,6 +707,7 @@ async def github(ctx: Context) -> None:
         f"""Here is the github link to my code:
         https://github.com/gfrewqpoiu/GretaBot""",
     )
+    logger.info(f"{ctx.author.name} ran the github command.")
 
 
 all_commands.append(github)
@@ -724,6 +726,7 @@ async def version(ctx: Context) -> None:
     """Gives back the bot version"""
     await slash_respond_both(ctx)
     await send_message_both(ctx, bot_version)
+    logger.info(f"{ctx.author.name} ran the version command.")
 
 
 all_commands.append(version)
@@ -1233,6 +1236,8 @@ async def changes(ctx: Context) -> None:
         ctx,
         """The changes:
     1.0.0 -> **ADDED**: Many commands can now be run by using /command.
+    Though the old prefix based commands still work.
+    And some commands, esp. hidden ones, don't work with /.
     0.11.0 -> **ADDED:** Lots of additional documentation.
     0.10.0 -> **ADDED:** New help2 command for owners. 
     Changes of 0.6.1 or earlier will be removed from this list in the next update.
@@ -1263,7 +1268,6 @@ async def upcoming(ctx: Context) -> None:
         ctx,
         """This is upcoming:```Markdown
         * Full version of hack_run game.
-        * Remaining commands as / commands.
         ```""",
     )
 
@@ -1962,7 +1966,7 @@ all_commands.append(help2)
 
 
 async def _say_everywhere_trio(
-    ctx: Context, message: str, tts: bool = False, delete_after: int = 20
+    ctx: Context, message: str, use_tts: bool = False, delete_after: int = 20
 ):
     important_patterns_startswith = ["rule", "welc"]
     important_patterns_everywhere = ["announc", "offici", "partne", "verifi"]
@@ -1973,23 +1977,25 @@ async def _say_everywhere_trio(
     def is_important_channel(channel: discord.TextChannel) -> bool:
         return bool(important_regex.search(channel.name.lower()))
 
-    for channel in ctx.guild.channels:
-        if isinstance(channel, discord.TextChannel) and not is_important_channel(
-            channel
-        ):
-            task = partial(
-                send_message_both,
-                channel,
-                message,
-                tts=tts,
-                delete_after=delete_after,
-                # allowed_mentions=discord.AllowedMentions(
-                #     everyone=False, users=[ctx.author], roles=False, replied_user=True
-                # ),
-            )
-            global_nursery.start_soon(task)
+    async with trio.open_nursery() as nursery:
+        for channel in ctx.guild.channels:
+            if isinstance(channel, discord.TextChannel) and not is_important_channel(
+                channel
+            ):
+                task = partial(
+                    send_message_both,
+                    channel,
+                    message,
+                    tts=use_tts,
+                    delete_after=delete_after,
+                    # allowed_mentions=discord.AllowedMentions(
+                    #     everyone=False, users=[ctx.author], roles=False, replied_user=True
+                    # ),
+                )
+                nursery.start_soon(task)
 
 
+# noinspection PyShadowingNames
 @commands.command(hidden=True, name="sayeverywhere", aliases=["say_everywhere"])
 async def say_everywhere(
     ctx: Context, *, message: str, tts: bool = False, delete_after: int = 20
@@ -1998,7 +2004,9 @@ async def say_everywhere(
     await slash_respond_both(ctx, True)
     assert ctx.guild is not None
     assert ctx.author.id in configOwner
-    await trio_as_aio(_say_everywhere_trio)(ctx, message, tts, delete_after)
+    await trio_as_aio(_say_everywhere_trio)(
+        ctx, message, use_tts=tts, delete_after=delete_after
+    )
 
 
 all_commands.append(say_everywhere)
