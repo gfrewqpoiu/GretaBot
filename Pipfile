@@ -25,6 +25,8 @@ brotlipy = "*"
 # trimeter = {editable = true, git = "https://github.com/python-trio/trimeter.git"}
 # perf-timer = "*"
 trio-asyncio = {editable = true, git = "https://github.com/python-trio/trio-asyncio.git"}
+discord-py-slash-command = "*"
+attrs = "*"
 
 [requires]
 python_version = "3.9"
