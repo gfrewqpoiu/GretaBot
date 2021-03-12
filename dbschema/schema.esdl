@@ -31,14 +31,12 @@ module default {
         required single link guild -> Guild {
             readonly := True;
         }
-        # Just an alias for GuildQuote.guild.discord_id
         required property guild_id := .guild.discord_id;
     }
     type ChannelQuote extending Quote {
         required single link channel -> Channel {
             readonly := True;
         }
-        # Just an alias for ChannelQuote.channel.discord_id
         required property channel_id := .channel.discord_id;
     }
     abstract type Snowflake {
@@ -57,14 +55,9 @@ module default {
         required property is_owner -> bool {
             default := False;
         }
-        # Just an alias for User.discord_id
         required property user_id := .discord_id;
-        # This is the really crazy stuff, links in EdgeDB are bidirectional.
-        # So this allows us to fill guilds from the Guilds.
-        multi link guilds := .<users[IS Guild]
     }
     abstract type Channel extending Snowflake{
-        # Just an alias for Channel.discord_id
         required property channel_id := .discord_id;
     }
     type GuildChannel extending Channel {
@@ -77,11 +70,9 @@ module default {
     }
     type Guild extending Snowflake {
         required property name -> bounded_str;
+        multi link channels -> GuildChannel;
         multi link users -> User;
-        # Just an alias for Guild.discord_id
         required property guild_id := .discord_id;
-        # Again crazy, we can fill channels automatically from the known channels of this guild.
-        multi link channels := .<guild[IS GuildChannel];
     }
     type DMChannel extending Channel {
         required single link user -> User {
