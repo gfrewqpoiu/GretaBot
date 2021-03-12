@@ -96,9 +96,9 @@ INSERT ChannelQuote {
             
         )
     ),
-    guild := (
-        SELECT Guild
-        FILTER discord_id = <std::bigint>$guild_id
+    Channel := (
+        SELECT Channel
+        FILTER discord_id = <std::bigint>$channel_id
         LIMIT 1
     ),
 }
