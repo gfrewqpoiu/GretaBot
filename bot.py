@@ -59,6 +59,7 @@ try:  # These are mandatory.
     from anyio.abc import TaskGroup
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
     from anyio.streams.text import TextStream
+    import edgedb
 except ImportError:
     raise ImportError(
         "You have some dependencies missing, please install them with pipenv install --deploy"
