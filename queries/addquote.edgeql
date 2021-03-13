@@ -11,7 +11,7 @@ INSERT GuildQuote {
         UNLESS CONFLICT ON .discord_id
         ELSE (
             UPDATE User
-            FILTER User.discord_id = <std::bigint>$user_id
+            FILTER .discord_id = <std::bigint>$user_id
             SET {
                 name := <bounded_str>$user_name,
                 tag := <bounded_str>$user_tag,
@@ -20,7 +20,7 @@ INSERT GuildQuote {
     ),
     guild := (
         SELECT Guild
-        FILTER discord_id = <std::bigint>$guild_id
+        FILTER .discord_id = <std::bigint>$guild_id
         LIMIT 1
     ),
 }
@@ -28,6 +28,7 @@ UNLESS CONFLICT ON .guild_keyword ELSE (
     SELECT GuildQuote
 )
 ) {
+    id,
     keyword,
     quote_text,
     created_by: {
@@ -56,7 +57,7 @@ INSERT GlobalQuote {
         }
         UNLESS CONFLICT ON .discord_id ELSE (
             UPDATE User
-            FILTER User.discord_id = <std::bigint>$user_id
+            FILTER .discord_id = <std::bigint>$user_id
             SET {
                 is_owner := True,
                 name := <bounded_str>$user_name,
@@ -69,6 +70,7 @@ UNLESS CONFLICT ON .keyword ELSE (
     SELECT GlobalQuote
 )
 ) {
+    id,
     keyword,
     quote_text,
     created_by: {
@@ -98,7 +100,7 @@ INSERT ChannelQuote {
     ),
     Channel := (
         SELECT Channel
-        FILTER discord_id = <std::bigint>$channel_id
+        FILTER .discord_id = <std::bigint>$channel_id
         LIMIT 1
     ),
 }
@@ -106,6 +108,7 @@ UNLESS CONFLICT ON .guild_keyword ELSE (
     SELECT ChannelQuote
 )
 ) {
+    id,
     keyword,
     quote_text,
     created_by: {
@@ -116,6 +119,7 @@ UNLESS CONFLICT ON .guild_keyword ELSE (
     },
     created_at,
     channel: {
+        discord_id,
         channel_id,
         name,
     },
