@@ -8,4 +8,4 @@ image:
 
 # List the start up tasks. You can start them in parallel in multiple terminals. See https://www.gitpod.io/docs/config-start-tasks/
 tasks:
-  - init: pipenv sync --dev # runs during prebuild
+  - init: pyenv install 3.9.2 && pipenv sync --dev # runs during prebuild
