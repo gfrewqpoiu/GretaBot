@@ -923,6 +923,18 @@ all_slash_commands.append(
     )
 )
 
+@commands.command(hidden=True, aliases=["msg_user", "msguser", "msgto", "pmuser", "pm_user", "say_to", "sayto"])
+async def msg_to(ctx: Context, user: discord.User, *, message: str) -> None:
+    """Messages the given user via PM"""
+    await slash_respond_both(ctx, True)
+    out = [f"{ctx.author.name} ran msg_to Command with the message: {message}"]
+    if ctx.guild is not None:
+        out.append(f" in the guild {ctx.guild.name}")
+    if ctx.channel is not None:
+        out.append(f" in the channel {ctx.channel.name}.")
+    logger.info("".join(out))
+    await send_message_both(user, message)
+
 
 # noinspection DuplicatedCode
 @commands.command(hidden=True)
