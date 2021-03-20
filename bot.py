@@ -123,9 +123,6 @@ except ValueError:
 if log_channel_id == 0:
     log_channel_id = None
 
-bot_version: str = "0.12.0"
-main_channel: Optional[discord.TextChannel] = None
-log_channel: Optional[discord.TextChannel] = None
 intents = (
     discord.Intents.default()
 )  # This basically tells the bot, for what events it should ask Discord.
