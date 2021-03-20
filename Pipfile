@@ -27,6 +27,7 @@ brotlipy = "*"
 trio-asyncio = {editable = true, git = "https://github.com/python-trio/trio-asyncio.git"}
 discord-py-slash-command = "*"
 attrs = "*"
+anyio = {editable = true, git = "https://github.com/agronholm/anyio.git"}
 
 [requires]
 python_version = "3.9"
