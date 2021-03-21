@@ -18,7 +18,6 @@ trio = "*"
 httpx = {extras = ["http2"], version = "*"}
 sniffio = "*"
 tenacity = "*"
-trio-util = "*"
 cchardet = "*"
 brotlipy = "*"
 # trio-parallel = "*"

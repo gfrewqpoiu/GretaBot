@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "62ba09e76991f0daa00f491454aea5d1878ab7a477455118a8c0bf8d55dca5ce"
+            "sha256": "913f8cfb2f826447de73852c0eb735bc27b0ca58e7e3ae436d8412274d2b216d"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -448,14 +448,6 @@
             "git": "https://github.com/python-trio/trio-asyncio.git",
             "ref": "308dd765dbf9d572f45f884492aecc9e1ebf6054"
         },
-        "trio-util": {
-            "hashes": [
-                "sha256:a4b1db87191e56dfce3e6bc244d3232fa9f28ed4ec829c8ba22304f81400fe89",
-                "sha256:e34aa629cef02f8a653ed4ae2ecbda0acb5000bd9d6ff48e95b64d8ca7b2c9a2"
-            ],
-            "index": "pypi",
-            "version": "==0.4.0"
-        },
         "typing-extensions": {
             "hashes": [
                 "sha256:7cb407020f00f7bfc3cb3e7881628838e69d8f3fcab2f64742a5e76b2f841918",
@@ -638,13 +630,21 @@
             ],
             "version": "==4.4.2"
         },
+        "discord.py": {
+            "hashes": [
+                "sha256:3df148daf6fbcc7ab5b11042368a3cd5f7b730b62f09fb5d3cbceff59bcfbb12",
+                "sha256:ba8be99ff1b8c616f7b6dcb700460d0222b29d4c11048e74366954c465fdd05f"
+            ],
+            "markers": "python_full_version >= '3.5.3'",
+            "version": "==1.6.0"
+        },
         "discord.py-stubs": {
             "hashes": [
-                "sha256:42e527eb7db7c147a753ab4bd22f30fc561962d78937edfd53e94731584054ae",
-                "sha256:d35ec693369b3ee2d7918f48d0b15c55c1a55de82c0d6a15f6b90da222109718"
+                "sha256:1c33afbbce2fbdd95781a87e7872e554e1c67b0c9b7af4c966c52d24dbbacf68",
+                "sha256:c334ba6790f6b5873ccde22cf433b9f38161bd0e882115f2f1fadcf03ca22fa1"
             ],
             "index": "pypi",
-            "version": "==1.6.0.2"
+            "version": "==1.6.2"
         },
         "idna": {
             "hashes": [

@@ -38,7 +38,8 @@ try:  # These are mandatory.
     import peewee
     import trio_asyncio
     import trio
-    import trio_util
+
+    # import trio_util
     import sniffio
     from tenacity import (
         Retrying,
@@ -182,10 +183,8 @@ global_quotes: Dict[
     "XD": "XC",
 }
 
-shutting_down = (
-    trio_util.AsyncBool()
-)  # This is basically just a boolean value, that can be waited for.
-started_up = trio_util.AsyncBool()
+shutting_down_event: anyio.abc.Event  # This is basically just a boolean False value, that can be waited for.
+started_up_event: anyio.abc.Event
 global_task_group: TaskGroup  # A task group is a way to run multiple things at the same time. This will be set later.
 log_send_channel: MemoryObjectSendStream[str]
 log_recv_channel: MemoryObjectReceiveStream[str]
@@ -228,8 +227,7 @@ async def set_status_text_both(message: str) -> None:
     Can be called from both trio and asyncio.
     :param message: The message the bot should display in it's status."""
     assert bot is not None
-    if not started_up.value:
-        return
+    await started_up_event.wait()
     logger.debug(f"Setting playing status to {message}")
     # noinspection PyArgumentList
     game = discord.Game(message)
@@ -266,7 +264,7 @@ async def send_message_both(
     :return: None"""
     assert bot is not None
 
-    if shutting_down.value:
+    if shutting_down_event.is_set():
         return
 
     if isinstance(target, SlashContext):
@@ -362,7 +360,8 @@ async def wait_for_event_both(
 def log_startup() -> None:
     """This logs the startup messages to the console."""
     assert bot is not None
-    shutting_down.value = True
+    if started_up_event.is_set():
+        return
     logger.info("Logged in as")
     logger.info(bot.user.name)
     logger.info(bot.user.id)
@@ -421,7 +420,7 @@ def log_to_channel(message: str) -> None:
     try:
         if log_channel is not None:
             assert bot is not None
-            if not shutting_down.value:
+            if not shutting_down_event.is_set() and started_up_event.is_set():
                 library = sniffio.current_async_library()
                 if debugging:
                     print(f"Logging to Discord from Library: {library}")
@@ -430,8 +429,9 @@ def log_to_channel(message: str) -> None:
                     log_send_channel.send_nowait(message)
                 except anyio.WouldBlock:
                     raise RuntimeError("Queue is full")
+
         else:
-            pass
+            return
     except DiscordException:
         pass
     except sniffio.AsyncLibraryNotFoundError:
@@ -480,14 +480,18 @@ def setup_log_channel() -> None:
 
 async def on_ready_anyio() -> None:
     """This runs the setup of other things that depend on the bot being fully ready."""
-    global log_channel
-    shutting_down.value = False
+    global log_channel, shutting_down_event, started_up_event
+    shutting_down_event = anyio.create_event()
     log_channel = None
-    started_up.value = False
+    started_up_event = anyio.create_event()
     async with anyio.create_task_group() as task_group:
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
         task_group.spawn(anyio.run_sync_in_worker_thread, log_startup)
+    # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+    # noinspection PyAsyncCall
+    started_up_event.set()
+    async with anyio.create_task_group() as task_group:
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
         task_group.spawn(set_status_text_both, "waiting")
@@ -499,10 +503,9 @@ async def on_ready_anyio() -> None:
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
         task_group.spawn(anyio.run_sync_in_worker_thread, setup_log_channel)
-    started_up.value = True
+
     # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
     # noinspection PyAsyncCall
-
     global_task_group.spawn(logging_task_anyio)
     logger.debug("Done with setup in anyio.")
 
@@ -510,7 +513,6 @@ async def on_ready_anyio() -> None:
 async def on_ready() -> None:
     """This runs whenever the bot is ready to accept commands."""
     await trio_as_aio(on_ready_anyio)()
-    shutting_down.value = False
     logger.success("Done with bot setup.")
 
 
@@ -691,10 +693,12 @@ all_events.append(on_raw_reaction_add)
 
 async def on_disconnect() -> None:
     """This runs whenever the client disconnects from Discord."""
-    global log_channel
+    global log_channel, started_up_event
     log_channel = None
-    started_up.value = False
-    shutting_down.value = True
+    started_up_event = anyio.create_event()
+    # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+    # noinspection PyAsyncCall
+    shutting_down_event.set()
     logger.warning("Got disconnected from Discord.")
 
 
@@ -782,7 +786,9 @@ async def shutdown(ctx: Context) -> None:
     assert ctx.author.id in configOwner
     await send_message_both(ctx, "Shutting down!", delete_after=3)
     await sleep_both(5)
-    shutting_down.value = True
+    # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+    # noinspection PyAsyncCall
+    shutting_down_event.set()
     logger.warning(f"Shutting down on request of {ctx.author.name}!")
     await sleep_both(3)
     db.close()
@@ -1674,12 +1680,12 @@ async def repeat_message_trio(
     if sleep_time < 0.5:
         raise ValueError("Must sleep for at least 0.5 seconds between messages.")
     run = 0
-    async with aclosing(trio_util.periodic(sleep_time)) as periodic:
-        async for _ in periodic:
-            await send_message_both(ctx, message, tts=use_tts)
-            run += 1
-            if run >= amount:
-                break
+    while True:
+        await send_message_both(ctx, message, tts=use_tts)
+        run += 1
+        if run >= amount:
+            break
+        await sleep_both(sleep_time)
 
 
 # noinspection SpellCheckingInspection
@@ -2139,27 +2145,27 @@ async def cycle_playing_status_trio(period: int = 5 * 60) -> None:
     ]
     await sleep_both(15)
     assert bot is not None
-    await started_up.wait_value(True)
-    async with aclosing(trio_util.periodic(period)) as periodic:
-        async for _ in periodic:
-            if shutting_down.value:
-                continue
-            # noinspection PyBroadException
-            try:
-                await set_status_text_both(random.choice(statuses))
-            except DiscordException:
-                break
-            except RuntimeError:
-                break
-            except aiohttp.ClientConnectionError:
-                break
+    await started_up_event.wait()
+    while True:
+        await sleep_both(period)
+        if shutting_down_event.is_set():
+            continue
+        # noinspection PyBroadException
+        try:
+            await set_status_text_both(random.choice(statuses))
+        except DiscordException:
+            break
+        except RuntimeError:
+            break
+        except aiohttp.ClientConnectionError:
+            break
 
 
 async def logging_task_anyio():
     """Sends a log message to the log channel."""
     while True:
         message = await log_recv_channel.receive()
-        if not shutting_down.value:
+        if not shutting_down_event.is_set():
             if log_channel is not None:
                 await send_message_both(log_channel, message, True)
             await sleep_both(3)
@@ -2172,7 +2178,7 @@ async def main() -> None:
 
     This function is using trio even though it doesn't end in _trio because main is a standardized name for the
     main entry point into the code."""
-    global global_task_group
+    global global_task_group, started_up_event, shutting_down_event
     # This is a trio function, so we can call trio stuff directly, but for starting asyncio functions we need a loop.
     async with trio_asyncio.open_loop() as loop:
         # Now we can use aio_as_trio to jump to asyncio.
@@ -2180,6 +2186,8 @@ async def main() -> None:
         try:
             async with anyio.create_task_group() as task_group:
                 # This is a nursery, it allows us to start Tasks that should run at the same time.
+                started_up_event = anyio.create_event()
+                shutting_down_event = anyio.create_event()
                 await setup_bot()
                 assert bot is not None
                 logger.debug("Initializing Database.")
@@ -2195,7 +2203,9 @@ async def main() -> None:
                 task_group.spawn(cycle_playing_status_trio)
         except KeyboardInterrupt:
             if bot is not None:
-                shutting_down.value = True
+                # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+                # noinspection PyAsyncCall
+                shutting_down_event.set()
                 logger.warning("Logging out the bot.")
                 await aio_as_trio(bot.logout)
                 raise SystemExit
