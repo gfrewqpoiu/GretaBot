@@ -187,9 +187,9 @@ shutting_down = (
 )  # This is basically just a boolean value, that can be waited for.
 started_up = trio_util.AsyncBool()
 global_task_group: TaskGroup  # A task group is a way to run multiple things at the same time. This will be set later.
-log_send_channel: trio.MemorySendChannel[str]
-log_recv_channel: trio.MemoryReceiveChannel[str]
-log_send_channel, log_recv_channel = trio.open_memory_channel(10)
+log_send_channel: MemoryObjectSendStream[str]
+log_recv_channel: MemoryObjectReceiveStream[str]
+log_send_channel, log_recv_channel = anyio.create_memory_object_stream(10, str)
 
 
 def input_to_bool(text: str) -> Optional[bool]:
@@ -380,7 +380,7 @@ def log_startup() -> None:
     logger.info("------")
 
 
-async def _add_global_quote_anyio(
+async def _add_global_quote_trio(
     keyword: str, text: str, author: Optional[discord.User] = None
 ) -> None:
     """This adds a global quote to the database.
@@ -428,8 +428,8 @@ def log_to_channel(message: str) -> None:
                 try:
                     # logging_queue.put_nowait(message)
                     log_send_channel.send_nowait(message)
-                except trio.WouldBlock:
-                    pass
+                except anyio.WouldBlock:
+                    raise RuntimeError("Queue is full")
         else:
             pass
     except DiscordException:
@@ -438,7 +438,13 @@ def log_to_channel(message: str) -> None:
         # This happens when calling logger from weird edge cases.
         # Sadly, nothing seems to be transferred to this state.
         # We just ignore the message in this case, it gets logged to file and console anyway.
-        print(f"Logging to Discord failed for message: {message}")
+        print(
+            f"Logging to Discord failed for message: {message} because of unknown async context."
+        )
+    except RuntimeError:
+        print(
+            f"Logging to Discord failed for message: {message} because the queue is full"
+        )
 
 
 def setup_channel_logger() -> Optional[int]:
@@ -486,9 +492,10 @@ async def on_ready_anyio() -> None:
         # noinspection PyAsyncCall
         task_group.spawn(set_status_text_both, "waiting")
         for keyword, text in global_quotes.items():
+            task = partial(_add_global_quote_trio, keyword, text, None)
             # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
             # noinspection PyAsyncCall
-            task_group.spawn(_add_global_quote_anyio, keyword, text, None)
+            task_group.spawn(task)
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
         task_group.spawn(anyio.run_sync_in_worker_thread, setup_log_channel)
@@ -551,6 +558,18 @@ def _get_quote_sync(guild: discord.Guild, text: str) -> Optional[str]:
     return None
 
 
+async def _get_quote_trio(guild: Optional[discord.Guild], text: str) -> Optional[str]:
+    if guild:
+        return await anyio.run_sync_in_worker_thread(_get_quote_sync, guild, text)
+    else:
+        task = partial(
+            Quote.get_or_none, -1 == Quote.guildId, text.lower() == Quote.keyword
+        )
+        quote = await anyio.run_sync_in_worker_thread(task)
+        if quote:
+            return quote.result
+
+
 async def on_message(message: discord.Message) -> None:
     """This function runs whenever the bot sees a new message in Discord.
 
@@ -584,14 +603,10 @@ async def on_message(message: discord.Message) -> None:
     ] = message.channel
     guild: Optional[discord.Guild] = message.guild
 
-    if guild:
-        thread = partial(
-            anyio.run_sync_in_worker_thread, partial(_get_quote_sync, guild, text)
-        )
-        quote = await trio_as_aio(thread)()
-        if quote:
-            await channel.send(quote)
-            return
+    quote = await trio_as_aio(_get_quote_trio)(guild, text)
+    if quote:
+        await channel.send(quote)
+        return
 
     if bot.user.mentioned_in(message):
         await channel.send(f"Can I help you with anything?")
@@ -829,7 +844,7 @@ async def restart(ctx: Context) -> None:
     logger.warning(f"Restarting on request of {ctx.author.name}!")
     db.close()
     try:
-        await trio_as_aio(log_send_channel.aclose)
+        await log_send_channel.aclose()
     except discord.NotFound:
         pass
     # noinspection PyBroadException
@@ -1333,7 +1348,7 @@ all_commands.append(free_nitro)
 
 
 @logger.catch(reraise=True)
-async def hacknet_trio(ctx: Context) -> None:
+async def hacknet_anyio(ctx: Context) -> None:
     """The implementation of the new hack_net and hack_run game.
 
     The game is based heavily on hack_run. It is supposed to simulate a UNIX Terminal, where the user
@@ -1536,7 +1551,7 @@ async def hacknet_trio(ctx: Context) -> None:
 @commands.command(hidden=True, aliases=["hacknet", "hack_run", "hackrun"])
 async def hack_net(ctx: Context) -> None:
     """Use this command to start the new WIP mini-game (ps. this is first step command of Easter egg)."""
-    await trio_as_aio(hacknet_trio)(ctx)
+    await hacknet_anyio(ctx)
 
 
 all_commands.append(hack_net)
@@ -1735,7 +1750,7 @@ all_commands.append(tts)
 # This command should not get a / command version.
 
 
-async def _add_quote_anyio(ctx: Context, keyword: str, quote_text: str) -> None:
+async def _add_quote_trio(ctx: Context, keyword: str, quote_text: str) -> None:
     """Actually adds a quote to the database using anyio."""
     if ctx.message.guild is None:
         raise ValueError("We don't have any guild ID!")
@@ -1759,6 +1774,8 @@ async def addquote(ctx: Context, keyword: str, *, quote_text: str) -> None:
 
     Specify the keyword in "" if it has spaces in it.
     Like this: addquote "key message" Reacting Text"""
+    if sniffio.current_async_library() == "asyncio":
+        return await trio_as_aio(addquote)(ctx, keyword, quote_text=quote_text)
     assert ctx.author.permissions_in(ctx.channel).manage_messages
     await slash_respond_both(ctx)
     if len(keyword) < 1 or len(quote_text) < 1:
@@ -1776,7 +1793,7 @@ async def addquote(ctx: Context, keyword: str, *, quote_text: str) -> None:
             "Neither the Keyword nor the quote text can start with punctuation to avoid running bot commands.",
         )
         return
-    await trio_as_aio(_add_quote_anyio)(ctx, keyword, quote_text)
+    await _add_quote_trio(ctx, keyword, quote_text)
     await send_message_both(ctx, "I saved the quote.")
 
 
@@ -1823,7 +1840,7 @@ async def add_global_quote(
             "Neither the Keyword nor the quote text can start with punctuation to avoid running bot commands.",
         )
         return
-    await trio_as_aio(_add_global_quote_anyio)(keyword, quote_text, ctx.author)
+    await trio_as_aio(_add_global_quote_trio)(keyword, quote_text, ctx.author)
     await send_message_both(ctx, "I saved the quote.")
 
 
@@ -1858,6 +1875,8 @@ all_commands.append(deletequote)
 @commands.command(hidden=False, aliases=["liqu"], name="listquotes")
 async def list_quotes(ctx: Context) -> None:
     """Lists all quotes on the current server."""
+    if sniffio.current_async_library() == "asyncio":
+        return await trio_as_aio(list_quotes)(ctx)
     await slash_respond_both(ctx)
     result = ""
     if ctx.guild is None:
@@ -2040,9 +2059,7 @@ async def say_everywhere(
     await slash_respond_both(ctx, True)
     assert ctx.guild is not None
     assert ctx.author.id in configOwner
-    await trio_as_aio(_say_everywhere_anyio)(
-        ctx, message, use_tts=tts, delete_after=delete_after
-    )
+    await _say_everywhere_anyio(ctx, message, use_tts=tts, delete_after=delete_after)
 
 
 all_commands.append(say_everywhere)
