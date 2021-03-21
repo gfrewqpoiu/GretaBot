@@ -54,6 +54,8 @@ try:  # These are mandatory.
     import attr
     import anyio
     from anyio.abc import TaskGroup
+    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+    from anyio.streams.text import TextStream
 except ImportError:
     raise ImportError(
         "You have some dependencies missing, please install them with pipenv install --deploy"
@@ -136,7 +138,7 @@ intents.members = True  # This allows us to get all members of a guild. Also pri
 punctuation = string.punctuation  # A list of all punctuation characters
 
 bot: Optional[commands.Bot] = None
-bot_version: Final[str] = "1.0.0"
+bot_version: Final[str] = "2.0.0-dev"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 
@@ -2139,7 +2141,6 @@ async def cycle_playing_status_trio(period: int = 5 * 60) -> None:
 async def logging_task_anyio():
     """Sends a log message to the log channel."""
     while True:
-        # message = await aio_as_trio(logging_queue.get)()
         message = await log_recv_channel.receive()
         if not shutting_down.value:
             if log_channel is not None:
@@ -2222,7 +2223,7 @@ if __name__ == "__main__":
     ):
         with attempt:
             try:
-                trio.run(main)
+                anyio.run(main, backend="trio")
             except DiscordException as e:
                 logger.exception(e)
                 raise ValueError(
