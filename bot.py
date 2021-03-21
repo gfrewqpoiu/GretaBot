@@ -50,7 +50,6 @@ try:  # These are mandatory.
     )
     from discord_slash import SlashCommand, SlashContext
     from discord_slash.utils import manage_commands
-    from async_generator import aclosing
     import attr
     import anyio
     from anyio.abc import TaskGroup
@@ -972,7 +971,8 @@ async def say3(ctx: SlashContext, *, message: str) -> None:
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
     if ctx.channel is not None:
-        out.append(f" in the channel {ctx.channel.name}.")
+        if isinstance(ctx.channel, discord.TextChannel):
+            out.append(f" in the channel {ctx.channel.name}.")
     logger.info("".join(out))
     await ctx.send(message, hidden=True)
 
