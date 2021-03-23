@@ -18,6 +18,9 @@ from typing import (
     Final,
     Coroutine,
     Set,
+    cast,
+    Any,
+    Mapping,
 )
 from functools import partial
 from enum import IntEnum
@@ -33,6 +36,7 @@ try:  # These are mandatory.
     import discord
     from discord.ext import commands
     from discord import utils
+    from discord.abc import PrivateChannel, GuildChannel
     import asyncio
     from loguru import logger
     import peewee
@@ -69,7 +73,7 @@ from checks import *
 class SlashCommandInfo:
     """Represents a slash command for later adding to the client"""
 
-    command: Coroutine[Any]
+    command: Coroutine[Any, Any, None]
     name: str
     description: Optional[str] = None
     options: List[Any] = attr.Factory(list)
@@ -151,7 +155,7 @@ all_commands: List[
     commands.Command
 ] = []  # This will be a list of all commands, that the bot will later activate.
 all_events: List[
-    Callable
+    Callable[[Any], Coroutine[Any, Any, None]]
 ] = []  # This will be a list of all the events that the bot should listen to.
 
 all_slash_commands: List[SlashCommandInfo] = []
@@ -236,7 +240,10 @@ async def set_status_text_anyio(message: str) -> None:
 
 @logger.catch(reraise=True)
 async def send_message_both(
-    target: discord.abc.Messageable, message: str, no_log: bool = False, **kwargs
+    target: discord.abc.Messageable,
+    message: str,
+    no_log: bool = False,
+    **kwargs,
 ) -> None:
     """Sends a message to `target`.
 
@@ -283,7 +290,7 @@ async def send_message_both(
 
     if len(message) > 1950:
         for sub_message in chunks(message):
-            await send_message_both(target, sub_message, **kwargs)
+            await send_message_both(target, sub_message, no_log, kwargs=kwargs)
             await sleep_both(3)
         return
 
@@ -439,14 +446,16 @@ def setup_channel_logger() -> Optional[int]:
     )
     if log_channel is not None:
         logger.info(f"Setting up logging to {log_channel.name}")
-        return logger.add(
-            log_to_channel,
-            level="INFO",
-            format=format_str,
-            colorize=False,
-            backtrace=False,
-            diagnose=False,
-            enqueue=False,
+        return int(
+            logger.add(
+                log_to_channel,
+                level="INFO",
+                format=format_str,
+                colorize=False,
+                backtrace=False,
+                diagnose=False,
+                enqueue=False,
+            )
         )
     return None
 
@@ -535,25 +544,30 @@ def _get_quote_sync(guild: discord.Guild, text: str) -> Optional[str]:
     logger.debug(f"Looking for quote with text: {text} in guild {guild.name}")
     quote = Quote.get_or_none(guild.id == Quote.guildId, text.lower() == Quote.keyword)
     if quote:
-        return quote.result
+        return str(quote.result)
     else:
         quote = Quote.get_or_none(-1 == Quote.guildId, text.lower() == Quote.keyword)
         if quote:
-            return quote.result
+            return str(quote.result)
     logger.debug("No quote found.")
     return None
 
 
-async def _get_quote_anyio(guild: Optional[discord.Guild], text: str) -> Optional[str]:
+async def get_quote_anyio(guild: Optional[discord.Guild], text: str) -> Optional[str]:
     if guild:
-        return await anyio.run_sync_in_worker_thread(_get_quote_sync, guild, text)
+        return cast(
+            Optional[str],
+            await anyio.run_sync_in_worker_thread(_get_quote_sync, guild, text),
+        )
     else:
         task = partial(
             Quote.get_or_none, -1 == Quote.guildId, text.lower() == Quote.keyword
         )
         quote = await anyio.run_sync_in_worker_thread(task)
         if quote:
-            return quote.result
+            return str(quote.result)
+        else:
+            return None
 
 
 async def on_message(message: discord.Message) -> None:
@@ -589,7 +603,7 @@ async def on_message(message: discord.Message) -> None:
     ] = message.channel
     guild: Optional[discord.Guild] = message.guild
 
-    quote = await _get_quote_anyio(guild, text)
+    quote = await get_quote_anyio(guild, text)
     if quote:
         await channel.send(quote)
         return
@@ -797,7 +811,7 @@ async def update(ctx: Context) -> None:
     await slash_respond_both(ctx)
     await send_message_both(ctx, "Ok, I am updating from GitHub.")
     try:
-        output: subprocess.CompletedProcess = await anyio.run_process(
+        output = await anyio.run_process(
             ["git", "pull"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
         embed = discord.Embed()
@@ -970,9 +984,9 @@ async def say3(ctx: SlashContext, *, message: str) -> None:
     out = [f"{ctx.author.name} ran say3 Command with the message: {message}"]
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
-    if ctx.channel is not None:
-        if isinstance(ctx.channel, discord.TextChannel):
-            out.append(f" in the channel {ctx.channel.name}.")
+    if ctx.channel is not None and isinstance(ctx.channel, discord.TextChannel):
+        # noinspection PyUnresolvedReferences
+        out.append(f" in the channel {ctx.channel.name}.")
     logger.info("".join(out))
     await ctx.send(message, hidden=True)
 
@@ -1039,7 +1053,7 @@ all_slash_commands.append(
 @commands.command(hidden=True, aliases=["setchannel"])
 @is_in_owners()
 @commands.guild_only()
-async def set_channel(ctx: Context):
+async def set_channel(ctx: Context) -> None:
     """Sets the channel for PM messaging."""
     assert ctx.guild is not None
     assert ctx.author.id in configOwner
@@ -1131,7 +1145,7 @@ all_commands.append(ban)
 
 
 @commands.command()
-async def info(ctx: Context):
+async def info(ctx: Context) -> None:
     """Gives some info about the bot"""
     assert bot is not None
     await slash_respond_both(ctx)
@@ -1461,7 +1475,7 @@ async def hacknet_anyio(ctx: Context) -> None:
             logger.success(
                 f"{user.name} ran hack_net command {command.clean_content.lower()}"
             )
-            return command.clean_content.lower()
+            return str(command.clean_content).lower()
         except TimeoutError:
             logger.warning(f"{user.name} played hack_net but timed out.")
             await send_message_both(
@@ -1552,6 +1566,7 @@ all_commands.append(hack_net)
 @commands.command(hidden=False)
 async def probe(ctx: Context) -> None:
     """Use this command to check for open ports (ps. this is first step command of Easter egg)."""
+    assert bot is not None
     await send_message_both(
         ctx,
         f""">1_OPEN_PORT_HAD_BEEN_FOUND
@@ -1634,7 +1649,7 @@ all_commands.append(cd_home)
     name="catREADME",
     aliases=["cat_readme", "cat_README.txt", "catREADME.txt"],
 )
-async def cat_readme(ctx: commands.Context):
+async def cat_readme(ctx: commands.Context) -> None:
     """This command shows what's inside of file"""
     await send_message_both(
         ctx,
@@ -1678,15 +1693,17 @@ async def annoy_everyone(ctx: Context, amount: int = 10, sleep_time: int = 30) -
     """This is just made to annoy people."""
     await slash_respond_both(ctx)
     if amount > 10:
-        await send_message_both("Too many repetitions. Maximum is 10.")
+        await send_message_both(ctx, "Too many repetitions. Maximum is 10.")
         return
     if sleep_time > 5 * 60:
         await send_message_both(
-            "Too much sleep time. Maximum 5 minutes so 300 seconds."
+            ctx, "Too much sleep time. Maximum 5 minutes so 300 seconds."
         )
         return
     if amount * sleep_time > 15 * 60 - 10:
-        await send_message_both("This would run for too long. Maximum is ~15 Minutes.")
+        await send_message_both(
+            ctx, "This would run for too long. Maximum is ~15 Minutes."
+        )
         return
     await repeat_message_anyio(
         ctx,
@@ -1950,7 +1967,7 @@ async def glitch(ctx: Context) -> None:
     author = ctx.author
     channel = ctx.message.channel
 
-    def check(message):
+    def check(message: discord.Message) -> bool:
         text = message.clean_content.strip().lower()
         answers = ["a", "b", "c"]
         return (
@@ -2005,7 +2022,7 @@ all_commands.append(help2)
 
 async def _say_everywhere_anyio(
     ctx: Context, message: str, use_tts: bool = False, delete_after: int = 20
-):
+) -> None:
     important_patterns_startswith = ["rule", "welc"]
     important_patterns_everywhere = ["announc", "offici", "partne", "verifi"]
     important_patterns = [f"^{re.escape(i)}" for i in important_patterns_startswith]
@@ -2040,7 +2057,7 @@ async def _say_everywhere_anyio(
 @commands.command(hidden=True, name="sayeverywhere", aliases=["say_everywhere"])
 async def say_everywhere(
     ctx: Context, *, message: str, tts: bool = False, delete_after: int = 20
-):
+) -> None:
     """Says the message everywhere on this server."""
     await slash_respond_both(ctx, True)
     assert ctx.guild is not None
@@ -2140,7 +2157,7 @@ async def cycle_playing_status_anyio(period: int = 5 * 60) -> None:
             break
 
 
-async def logging_task_anyio():
+async def logging_task_anyio() -> None:
     """Sends a log message to the log channel."""
     while True:
         message = await log_recv_channel.receive()
