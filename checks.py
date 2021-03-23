@@ -1,4 +1,5 @@
 import configparser
+from discord import Message
 from discord.ext import commands
 from typing import Any
 
@@ -31,13 +32,13 @@ def is_in_owners() -> Any:
 def is_main_owner() -> Any:
     """Checks whether the command is run by the main owner (the first one from the config)"""
 
-    def predicate(ctx: commands.Context):
+    def predicate(ctx: commands.Context) -> bool:
         return ctx.author.id == configOwner[0]
 
     return commands.check(predicate)
 
 
-def is_admin_check(message: Any) -> bool:
+def is_admin_check(message: Message) -> Any:
     """Checks, whether the command is run by an admin."""
     if is_in_owners():
         return True
@@ -49,7 +50,7 @@ def is_admin() -> Any:
     return commands.check(lambda ctx: is_admin_check(ctx.message))
 
 
-def is_mod_check(message: Any) -> bool:
+def is_mod_check(message: Message) -> bool:
     """Checks whether the command is run by a mod"""
     if is_admin():
         return True

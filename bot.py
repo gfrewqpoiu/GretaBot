@@ -18,6 +18,9 @@ from typing import (
     Final,
     Coroutine,
     Set,
+    cast,
+    Any,
+    Mapping,
 )
 from functools import partial
 from enum import IntEnum
@@ -33,12 +36,13 @@ try:  # These are mandatory.
     import discord
     from discord.ext import commands
     from discord import utils
+    from discord.abc import PrivateChannel, GuildChannel
     import asyncio
     from loguru import logger
     import peewee
-    import trio_asyncio
-    import trio
-    import trio_util
+
+    # import trio_asyncio
+    # import trio
     import sniffio
     from tenacity import (
         Retrying,
@@ -50,8 +54,11 @@ try:  # These are mandatory.
     )
     from discord_slash import SlashCommand, SlashContext
     from discord_slash.utils import manage_commands
-    from async_generator import aclosing
     import attr
+    import anyio
+    from anyio.abc import TaskGroup
+    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+    from anyio.streams.text import TextStream
 except ImportError:
     raise ImportError(
         "You have some dependencies missing, please install them with pipenv install --deploy"
@@ -66,7 +73,7 @@ from checks import *
 class SlashCommandInfo:
     """Represents a slash command for later adding to the client"""
 
-    command: Coroutine[Any]
+    command: Coroutine[Any, Any, None]
     name: str
     description: Optional[str] = None
     options: List[Any] = attr.Factory(list)
@@ -134,29 +141,21 @@ intents.members = True  # This allows us to get all members of a guild. Also pri
 punctuation = string.punctuation  # A list of all punctuation characters
 
 bot: Optional[commands.Bot] = None
-bot_version: Final[str] = "1.0.0"
+bot_version: Final[str] = "2.0.0-dev"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 
 # Some shorthands for easier access.
 Context = Union[commands.Context, SlashContext]
 DiscordException = discord.DiscordException
-aio_as_trio = trio_asyncio.aio_as_trio
-trio_as_aio = trio_asyncio.trio_as_aio
-# What is trio_asyncio? That makes it possible to use functions from the libraries asyncio and trio together.
-# The main discord code is written for asyncio but trio is generally easier to program for and has saner defaults.
-# For example, it doesn't just ignore errors and you can't just call concurrent functions willy nilly.
-# That is why for everything new that isn't just sending messages etc, I am using trio.
-# All bot functions and events are called using asyncIO by default, so if we want to jump to trio, we need to use
-# trio_as_aio. If we want to jump from trio to asyncio, we use aio_as_trio.
-# We also use a convention to name trio functions, that don't have decorator, as function_trio.
-# If a function is callable from both, we name it function_both.
+# aio_as_trio = trio_asyncio.aio_as_trio
+# trio_as_aio = trio_asyncio.trio_as_aio
 
 all_commands: List[
     commands.Command
 ] = []  # This will be a list of all commands, that the bot will later activate.
 all_events: List[
-    Callable
+    Callable[[Any], Coroutine[Any, Any, None]]
 ] = []  # This will be a list of all the events that the bot should listen to.
 
 all_slash_commands: List[SlashCommandInfo] = []
@@ -178,14 +177,12 @@ global_quotes: Dict[
     "XD": "XC",
 }
 
-shutting_down = (
-    trio_util.AsyncBool()
-)  # This is basically just a boolean value, that can be waited for.
-started_up = trio_util.AsyncBool()
-global_nursery: trio.Nursery  # A nursery is a way to run multiple things at the same time. This will be set later.
-log_send_channel: trio.MemorySendChannel[str]
-log_recv_channel: trio.MemoryReceiveChannel[str]
-log_send_channel, log_recv_channel = trio.open_memory_channel(10)
+shutting_down_event: anyio.abc.Event  # This is basically just a boolean False value, that can be waited for.
+started_up_event: anyio.abc.Event
+global_task_group: TaskGroup  # A task group is a way to run multiple things at the same time. This will be set later.
+log_send_channel: MemoryObjectSendStream[str]
+log_recv_channel: MemoryObjectReceiveStream[str]
+log_send_channel, log_recv_channel = anyio.create_memory_object_stream(10, str)
 
 
 def input_to_bool(text: str) -> Optional[bool]:
@@ -204,31 +201,27 @@ def input_to_bool(text: str) -> Optional[bool]:
 
 @logger.catch(reraise=True)
 async def sleep_both(sleep_time: float) -> None:
-    """A sleep function that can be called from asyncio and trio.
+    """A sleep function that can be called from anyio.
 
     :param sleep_time: For how long the current task should sleep in seconds.
     """
     try:
         lib = sniffio.current_async_library()
         logger.debug(f"Called sleep from {lib} for {sleep_time} seconds.")
-        if lib == "asyncio":
-            await asyncio.sleep(sleep_time)
-        elif lib == "trio":
-            await trio.sleep(sleep_time)
+        await anyio.sleep(sleep_time)
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Sleep was called without async context.")
         time.sleep(sleep_time)
 
 
 @logger.catch(reraise=True)
-async def set_status_text_both(message: str) -> None:
+async def set_status_text_anyio(message: str) -> None:
     """Sets the status of the bot as "playing message"
 
-    Can be called from both trio and asyncio.
+    Can be called using anyio.
     :param message: The message the bot should display in it's status."""
     assert bot is not None
-    if not started_up.value:
-        return
+    await started_up_event.wait()
     logger.debug(f"Setting playing status to {message}")
     # noinspection PyArgumentList
     game = discord.Game(message)
@@ -236,22 +229,25 @@ async def set_status_text_both(message: str) -> None:
         lib = sniffio.current_async_library()
         if lib == "asyncio":
             await bot.change_presence(activity=game)
-        elif lib == "trio":
-            await aio_as_trio(bot.change_presence)(activity=game)
+        else:
+            raise RuntimeError("Trio is no longer supported")
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async context.", RuntimeWarning)
-        global_nursery.start_soon(
-            aio_as_trio, partial(bot.change_presence, activity=game)
-        )
+        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+        # noinspection PyAsyncCall
+        global_task_group.spawn(partial(bot.change_presence, activity=game))
 
 
 @logger.catch(reraise=True)
 async def send_message_both(
-    target: discord.abc.Messageable, message: str, no_log: bool = False, **kwargs
+    target: discord.abc.Messageable,
+    message: str,
+    no_log: bool = False,
+    **kwargs,
 ) -> None:
     """Sends a message to `target`.
 
-    Can be called both from asyncio and trio.
+    Can be called both from anyio.
 
     :rtype: None
     :param target: discord.abc.Messageable: Where to send the message
@@ -263,7 +259,7 @@ async def send_message_both(
     :return: None"""
     assert bot is not None
 
-    if shutting_down.value:
+    if shutting_down_event.is_set():
         return
 
     if isinstance(target, SlashContext):
@@ -294,7 +290,7 @@ async def send_message_both(
 
     if len(message) > 1950:
         for sub_message in chunks(message):
-            await send_message_both(target, sub_message, **kwargs)
+            await send_message_both(target, sub_message, no_log, kwargs=kwargs)
             await sleep_both(3)
         return
 
@@ -304,17 +300,17 @@ async def send_message_both(
         library = sniffio.current_async_library()
         if library == "asyncio":
             await target.send(content=message, **kwargs)
-        elif library == "trio":
-            await aio_as_trio(target.send)(content=message, **kwargs)
         else:
-            raise NotImplementedError
+            raise RuntimeError("Trio is no longer supported")
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async Context.", RuntimeWarning)
         task = partial(target.send, content=message, **kwargs)
         logger.warning(
             f"Sending message {message} to {str(target)} from outside async context."
         )
-        global_nursery.start_soon(aio_as_trio, task)
+        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+        # noinspection PyAsyncCall
+        global_task_group.spawn(task)
 
 
 async def slash_respond_both(ctx: Context, eat_user_message: bool = False) -> None:
@@ -322,8 +318,8 @@ async def slash_respond_both(ctx: Context, eat_user_message: bool = False) -> No
         library = sniffio.current_async_library()
         if library == "asyncio":
             await ctx.respond(eat=eat_user_message)
-        elif library == "trio":
-            await aio_as_trio(ctx.respond)(eat=eat_user_message)
+        else:
+            raise RuntimeError("Trio is no longer supported")
 
 
 async def wait_for_event_both(
@@ -344,10 +340,8 @@ async def wait_for_event_both(
         lib = sniffio.current_async_library()
         if lib == "asyncio":
             return await bot.wait_for(event, timeout=timeout, check=check)
-        elif lib == "trio":
-            return await aio_as_trio(wait_for_event_both)(event, check, timeout)
         else:
-            raise RuntimeError("Not using asyncio or trio!")
+            raise RuntimeError("Not using asyncio!")
     except sniffio.AsyncLibraryNotFoundError:
         raise RuntimeError("Not in async Context.")
     except asyncio.TimeoutError:
@@ -357,7 +351,8 @@ async def wait_for_event_both(
 def log_startup() -> None:
     """This logs the startup messages to the console."""
     assert bot is not None
-    shutting_down.value = True
+    if started_up_event.is_set():
+        return
     logger.info("Logged in as")
     logger.info(bot.user.name)
     logger.info(bot.user.id)
@@ -375,7 +370,7 @@ def log_startup() -> None:
     logger.info("------")
 
 
-async def _add_global_quote_trio(
+async def _add_global_quote_anyio(
     keyword: str, text: str, author: Optional[discord.User] = None
 ) -> None:
     """This adds a global quote to the database.
@@ -387,7 +382,7 @@ async def _add_global_quote_trio(
     :param author: Optional,
     """
     keyword = keyword.lower()
-    quote = await trio.to_thread.run_sync(
+    quote = await anyio.run_sync_in_worker_thread(
         Quote.get_or_none, -1 == Quote.guildId, keyword == Quote.keyword
     )
     if quote is None:
@@ -397,7 +392,7 @@ async def _add_global_quote_trio(
         quote = Quote(guildId=-1, keyword=keyword, result=text, authorId=-1)
         if author is not None:
             quote.authorId = author.id
-        await trio.to_thread.run_sync(quote.save)
+        await anyio.run_sync_in_worker_thread(quote.save)
 
 
 def log_to_channel(message: str) -> None:
@@ -411,32 +406,39 @@ def log_to_channel(message: str) -> None:
 
     # There are probably better ways to do this, but we are constrained by three things.
     # 1. We only get message as a parameter and cannot add any other parameters. Maybe Contextvars?
-    # 2. This function needs to be callable from sync context, asyncio context, and trio context.
+    # 2. This function needs to be callable from sync context, asyncio context, and anyio context.
     # 3. If this errors, there is a high likelihood to cause a deadlock and crash so we need to avoid that.
     try:
         if log_channel is not None:
             assert bot is not None
-            if not shutting_down.value:
+            if not shutting_down_event.is_set() and started_up_event.is_set():
                 library = sniffio.current_async_library()
                 if debugging:
                     print(f"Logging to Discord from Library: {library}")
                 try:
                     # logging_queue.put_nowait(message)
                     log_send_channel.send_nowait(message)
-                except trio.WouldBlock:
-                    pass
+                except anyio.WouldBlock:
+                    raise RuntimeError("Queue is full")
+
         else:
-            pass
+            return
     except DiscordException:
         pass
     except sniffio.AsyncLibraryNotFoundError:
         # This happens when calling logger from weird edge cases.
         # Sadly, nothing seems to be transferred to this state.
         # We just ignore the message in this case, it gets logged to file and console anyway.
-        print(f"Logging to Discord failed for message: {message}")
+        print(
+            f"Logging to Discord failed for message: {message} because of unknown async context."
+        )
+    except RuntimeError:
+        print(
+            f"Logging to Discord failed for message: {message} because the queue is full"
+        )
 
 
-async def setup_channel_logger() -> Optional[int]:
+def setup_channel_logger() -> Optional[int]:
     """Sets up a logger and returns the ID of the logger."""
     format_str = (
         "```{time: HH:mm:ss.SSS} | <level>{level: <8}</level> | {function}:{line} - <level>{"
@@ -444,20 +446,21 @@ async def setup_channel_logger() -> Optional[int]:
     )
     if log_channel is not None:
         logger.info(f"Setting up logging to {log_channel.name}")
-        return logger.add(
-            log_to_channel,
-            level="INFO",
-            format=format_str,
-            colorize=False,
-            backtrace=False,
-            diagnose=False,
-            enqueue=False,
+        return int(
+            logger.add(
+                log_to_channel,
+                level="INFO",
+                format=format_str,
+                colorize=False,
+                backtrace=False,
+                diagnose=False,
+                enqueue=False,
+            )
         )
     return None
 
 
-@aio_as_trio
-async def setup_log_channel() -> None:
+def setup_log_channel() -> None:
     """Starts the setup of the Discord Log Channel if one is defined in the config."""
     global log_channel
     if log_channel_id is not None:
@@ -465,30 +468,44 @@ async def setup_log_channel() -> None:
         log_channel = bot.get_channel(log_channel_id)
         if log_channel is not None:
             logger.debug("Found bot log channel.")
-            await setup_channel_logger()
+            setup_channel_logger()
 
 
-async def on_ready_trio() -> None:
+async def on_ready_anyio() -> None:
     """This runs the setup of other things that depend on the bot being fully ready."""
-    global log_channel
-    shutting_down.value = False
+    global log_channel, shutting_down_event, started_up_event
+    shutting_down_event = anyio.create_event()
     log_channel = None
-    started_up.value = False
-    async with trio.open_nursery() as nursery:
-        nursery.start_soon(trio.to_thread.run_sync, log_startup)
-        nursery.start_soon(set_status_text_both, "waiting")
+    started_up_event = anyio.create_event()
+    async with anyio.create_task_group() as task_group:
+        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+        # noinspection PyAsyncCall
+        task_group.spawn(anyio.run_sync_in_worker_thread, log_startup)
+    # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+    # noinspection PyAsyncCall
+    started_up_event.set()
+    async with anyio.create_task_group() as task_group:
+        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+        # noinspection PyAsyncCall
+        task_group.spawn(set_status_text_anyio, "waiting")
         for keyword, text in global_quotes.items():
-            nursery.start_soon(_add_global_quote_trio, keyword, text, None)
-        nursery.start_soon(setup_log_channel)
-    started_up.value = True
-    global_nursery.start_soon(logging_task_trio)
-    logger.debug("Done with setup in trio.")
+            task = partial(_add_global_quote_anyio, keyword, text, None)
+            # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+            # noinspection PyAsyncCall
+            task_group.spawn(task)
+        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+        # noinspection PyAsyncCall
+        task_group.spawn(anyio.run_sync_in_worker_thread, setup_log_channel)
+
+    # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+    # noinspection PyAsyncCall
+    global_task_group.spawn(logging_task_anyio)
+    logger.debug("Done with setup in anyio.")
 
 
 async def on_ready() -> None:
     """This runs whenever the bot is ready to accept commands."""
-    await trio_as_aio(on_ready_trio)()
-    shutting_down.value = False
+    await on_ready_anyio()
     logger.success("Done with bot setup.")
 
 
@@ -527,13 +544,30 @@ def _get_quote_sync(guild: discord.Guild, text: str) -> Optional[str]:
     logger.debug(f"Looking for quote with text: {text} in guild {guild.name}")
     quote = Quote.get_or_none(guild.id == Quote.guildId, text.lower() == Quote.keyword)
     if quote:
-        return quote.result
+        return str(quote.result)
     else:
         quote = Quote.get_or_none(-1 == Quote.guildId, text.lower() == Quote.keyword)
         if quote:
-            return quote.result
+            return str(quote.result)
     logger.debug("No quote found.")
     return None
+
+
+async def get_quote_anyio(guild: Optional[discord.Guild], text: str) -> Optional[str]:
+    if guild:
+        return cast(
+            Optional[str],
+            await anyio.run_sync_in_worker_thread(_get_quote_sync, guild, text),
+        )
+    else:
+        task = partial(
+            Quote.get_or_none, -1 == Quote.guildId, text.lower() == Quote.keyword
+        )
+        quote = await anyio.run_sync_in_worker_thread(task)
+        if quote:
+            return str(quote.result)
+        else:
+            return None
 
 
 async def on_message(message: discord.Message) -> None:
@@ -569,12 +603,10 @@ async def on_message(message: discord.Message) -> None:
     ] = message.channel
     guild: Optional[discord.Guild] = message.guild
 
-    if guild:
-        thread = partial(trio.to_thread.run_sync, partial(_get_quote_sync, guild, text))
-        quote = await trio_as_aio(thread)()
-        if quote:
-            await channel.send(quote)
-            return
+    quote = await get_quote_anyio(guild, text)
+    if quote:
+        await channel.send(quote)
+        return
 
     if bot.user.mentioned_in(message):
         await channel.send(f"Can I help you with anything?")
@@ -659,10 +691,12 @@ all_events.append(on_raw_reaction_add)
 
 async def on_disconnect() -> None:
     """This runs whenever the client disconnects from Discord."""
-    global log_channel
+    global log_channel, started_up_event
     log_channel = None
-    started_up.value = False
-    shutting_down.value = True
+    started_up_event = anyio.create_event()
+    # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+    # noinspection PyAsyncCall
+    shutting_down_event.set()
     logger.warning("Got disconnected from Discord.")
 
 
@@ -750,7 +784,9 @@ async def shutdown(ctx: Context) -> None:
     assert ctx.author.id in configOwner
     await send_message_both(ctx, "Shutting down!", delete_after=3)
     await sleep_both(5)
-    shutting_down.value = True
+    # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+    # noinspection PyAsyncCall
+    shutting_down_event.set()
     logger.warning(f"Shutting down on request of {ctx.author.name}!")
     await sleep_both(3)
     db.close()
@@ -775,8 +811,8 @@ async def update(ctx: Context) -> None:
     await slash_respond_both(ctx)
     await send_message_both(ctx, "Ok, I am updating from GitHub.")
     try:
-        output: subprocess.CompletedProcess = await trio_as_aio(trio.run_process)(
-            ["git", "pull"], capture_stdout=True
+        output = await anyio.run_process(
+            ["git", "pull"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
         embed = discord.Embed()
         embed.set_author(name="Output:")
@@ -812,7 +848,7 @@ async def restart(ctx: Context) -> None:
     logger.warning(f"Restarting on request of {ctx.author.name}!")
     db.close()
     try:
-        await trio_as_aio(log_send_channel.aclose)
+        await log_send_channel.aclose()
     except discord.NotFound:
         pass
     # noinspection PyBroadException
@@ -924,6 +960,22 @@ all_slash_commands.append(
 )
 
 
+@commands.command(
+    hidden=True,
+    aliases=["msg_user", "msguser", "msgto", "pmuser", "pm_user", "say_to", "sayto"],
+)
+async def msg_to(ctx: Context, user: discord.User, *, message: str) -> None:
+    """Messages the given user via PM"""
+    await slash_respond_both(ctx, True)
+    out = [f"{ctx.author.name} ran msg_to Command with the message: {message}"]
+    if ctx.guild is not None:
+        out.append(f" in the guild {ctx.guild.name}")
+    if ctx.channel is not None:
+        out.append(f" in the channel {ctx.channel.name}.")
+    logger.info("".join(out))
+    await send_message_both(user, message)
+
+
 # noinspection DuplicatedCode
 @commands.command(hidden=True)
 async def say3(ctx: SlashContext, *, message: str) -> None:
@@ -932,7 +984,8 @@ async def say3(ctx: SlashContext, *, message: str) -> None:
     out = [f"{ctx.author.name} ran say3 Command with the message: {message}"]
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
-    if ctx.channel is not None:
+    if ctx.channel is not None and isinstance(ctx.channel, discord.TextChannel):
+        # noinspection PyUnresolvedReferences
         out.append(f" in the channel {ctx.channel.name}.")
     logger.info("".join(out))
     await ctx.send(message, hidden=True)
@@ -1000,7 +1053,7 @@ all_slash_commands.append(
 @commands.command(hidden=True, aliases=["setchannel"])
 @is_in_owners()
 @commands.guild_only()
-async def set_channel(ctx: Context):
+async def set_channel(ctx: Context) -> None:
     """Sets the channel for PM messaging."""
     assert ctx.guild is not None
     assert ctx.author.id in configOwner
@@ -1092,7 +1145,7 @@ all_commands.append(ban)
 
 
 @commands.command()
-async def info(ctx: Context):
+async def info(ctx: Context) -> None:
     """Gives some info about the bot"""
     assert bot is not None
     await slash_respond_both(ctx)
@@ -1300,7 +1353,7 @@ all_commands.append(free_nitro)
 
 
 @logger.catch(reraise=True)
-async def hacknet_trio(ctx: Context) -> None:
+async def hacknet_anyio(ctx: Context) -> None:
     """The implementation of the new hack_net and hack_run game.
 
     The game is based heavily on hack_run. It is supposed to simulate a UNIX Terminal, where the user
@@ -1422,7 +1475,7 @@ async def hacknet_trio(ctx: Context) -> None:
             logger.success(
                 f"{user.name} ran hack_net command {command.clean_content.lower()}"
             )
-            return command.clean_content.lower()
+            return str(command.clean_content).lower()
         except TimeoutError:
             logger.warning(f"{user.name} played hack_net but timed out.")
             await send_message_both(
@@ -1488,11 +1541,11 @@ async def hacknet_trio(ctx: Context) -> None:
     *Hint: Any commands, that are not recognized, get ignored.*
     If you want to end the game at any time, enter `end` or `exit`""",
     )
-    await trio.sleep(0.5)
+    await sleep_both(0.5)
     prompt = base_prompt(name, current_progress)
     prompt.append("```")
     await send_message_both(user, "".join(prompt))
-    await trio.sleep(0.5)
+    await sleep_both(0.5)
     await send_message_both(
         user, "Thank you for your interest in playing, the rest is not implemented yet."
     )
@@ -1503,7 +1556,7 @@ async def hacknet_trio(ctx: Context) -> None:
 @commands.command(hidden=True, aliases=["hacknet", "hack_run", "hackrun"])
 async def hack_net(ctx: Context) -> None:
     """Use this command to start the new WIP mini-game (ps. this is first step command of Easter egg)."""
-    await trio_as_aio(hacknet_trio)(ctx)
+    await hacknet_anyio(ctx)
 
 
 all_commands.append(hack_net)
@@ -1513,6 +1566,7 @@ all_commands.append(hack_net)
 @commands.command(hidden=False)
 async def probe(ctx: Context) -> None:
     """Use this command to check for open ports (ps. this is first step command of Easter egg)."""
+    assert bot is not None
     await send_message_both(
         ctx,
         f""">1_OPEN_PORT_HAD_BEEN_FOUND
@@ -1595,7 +1649,7 @@ all_commands.append(cd_home)
     name="catREADME",
     aliases=["cat_readme", "cat_README.txt", "catREADME.txt"],
 )
-async def cat_readme(ctx: commands.Context):
+async def cat_readme(ctx: commands.Context) -> None:
     """This command shows what's inside of file"""
     await send_message_both(
         ctx,
@@ -1612,26 +1666,25 @@ all_commands.append(cat_readme)
 # This command should not get a / command version.
 
 
-async def repeat_message_trio(
+async def repeat_message_anyio(
     ctx: Context,
     message: str,
     amount: int = 10,
     sleep_time: int = 30,
     use_tts: bool = True,
 ) -> None:
-    """This repeats a given message amount times with a sleep_time second break in between.
-    Can ONLY be called from trio. (for now)."""
+    """This repeats a given message amount times with a sleep_time second break in between."""
     if amount < 1:
         raise ValueError("Amount must be at least 1.")
     if sleep_time < 0.5:
         raise ValueError("Must sleep for at least 0.5 seconds between messages.")
     run = 0
-    async with aclosing(trio_util.periodic(sleep_time)) as periodic:
-        async for _ in periodic:
-            await send_message_both(ctx, message, tts=use_tts)
-            run += 1
-            if run >= amount:
-                break
+    while True:
+        await send_message_both(ctx, message, tts=use_tts)
+        run += 1
+        if run >= amount:
+            break
+        await sleep_both(sleep_time)
 
 
 # noinspection SpellCheckingInspection
@@ -1640,17 +1693,19 @@ async def annoy_everyone(ctx: Context, amount: int = 10, sleep_time: int = 30) -
     """This is just made to annoy people."""
     await slash_respond_both(ctx)
     if amount > 10:
-        await send_message_both("Too many repetitions. Maximum is 10.")
+        await send_message_both(ctx, "Too many repetitions. Maximum is 10.")
         return
     if sleep_time > 5 * 60:
         await send_message_both(
-            "Too much sleep time. Maximum 5 minutes so 300 seconds."
+            ctx, "Too much sleep time. Maximum 5 minutes so 300 seconds."
         )
         return
     if amount * sleep_time > 15 * 60 - 10:
-        await send_message_both("This would run for too long. Maximum is ~15 Minutes.")
+        await send_message_both(
+            ctx, "This would run for too long. Maximum is ~15 Minutes."
+        )
         return
-    await trio_as_aio(repeat_message_trio)(
+    await repeat_message_anyio(
         ctx,
         "Don't you like it when your cat goes: Meow. Meow? Meow! Meow. Meow "
         "Meow. Meow? Meow! Meow. Meow Meow? Meow! Meow. Meow",
@@ -1687,7 +1742,7 @@ all_slash_commands.append(
 @commands.command(hidden=False)
 async def tts(ctx: Context) -> None:
     """Says a funny tts phrase once."""
-    await trio_as_aio(repeat_message_trio)(
+    await repeat_message_anyio(
         ctx,
         "Don't you just hate it when your cat wakes you up like this? Meow. Meow. "
         "Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. Meow. "
@@ -1702,8 +1757,8 @@ all_commands.append(tts)
 # This command should not get a / command version.
 
 
-async def _add_quote_trio(ctx: Context, keyword: str, quote_text: str) -> None:
-    """Actually adds a quote to the database using trio."""
+async def _add_quote_anyio(ctx: Context, keyword: str, quote_text: str) -> None:
+    """Actually adds a quote to the database using anyio."""
     if ctx.message.guild is None:
         raise ValueError("We don't have any guild ID!")
     quote = Quote(
@@ -1712,7 +1767,7 @@ async def _add_quote_trio(ctx: Context, keyword: str, quote_text: str) -> None:
         result=quote_text,
         authorId=ctx.author.id,
     )
-    await trio.to_thread.run_sync(quote.save)
+    await anyio.run_sync_in_worker_thread(quote.save)
     logger.success(
         f"Added quote {keyword.lower()} with text: {quote_text} for guild: {ctx.message.guild} by {ctx.author.name}"
     )
@@ -1743,7 +1798,7 @@ async def addquote(ctx: Context, keyword: str, *, quote_text: str) -> None:
             "Neither the Keyword nor the quote text can start with punctuation to avoid running bot commands.",
         )
         return
-    await trio_as_aio(_add_quote_trio)(ctx, keyword, quote_text)
+    await _add_quote_anyio(ctx, keyword, quote_text)
     await send_message_both(ctx, "I saved the quote.")
 
 
@@ -1790,7 +1845,7 @@ async def add_global_quote(
             "Neither the Keyword nor the quote text can start with punctuation to avoid running bot commands.",
         )
         return
-    await trio_as_aio(_add_global_quote_trio)(keyword, quote_text, ctx.author)
+    await _add_global_quote_anyio(keyword, quote_text, ctx.author)
     await send_message_both(ctx, "I saved the quote.")
 
 
@@ -1831,7 +1886,7 @@ async def list_quotes(ctx: Context) -> None:
         await send_message_both(ctx, "You cannot run this command in a PM Channel.")
         return
     query = Quote.select(Quote.keyword).where(ctx.guild.id == Quote.guildId)
-    results = await trio_as_aio(trio.to_thread.run_sync)(query.execute)
+    results = await anyio.run_sync_in_worker_thread(query.execute)
     for quote in results:
         result = result + str(quote.keyword) + "; "
     if result != "":
@@ -1912,7 +1967,7 @@ async def glitch(ctx: Context) -> None:
     author = ctx.author
     channel = ctx.message.channel
 
-    def check(message):
+    def check(message: discord.Message) -> bool:
         text = message.clean_content.strip().lower()
         answers = ["a", "b", "c"]
         return (
@@ -1965,9 +2020,9 @@ all_commands.append(help2)
 # This command should not get a / command version.
 
 
-async def _say_everywhere_trio(
+async def _say_everywhere_anyio(
     ctx: Context, message: str, use_tts: bool = False, delete_after: int = 20
-):
+) -> None:
     important_patterns_startswith = ["rule", "welc"]
     important_patterns_everywhere = ["announc", "offici", "partne", "verifi"]
     important_patterns = [f"^{re.escape(i)}" for i in important_patterns_startswith]
@@ -1978,7 +2033,7 @@ async def _say_everywhere_trio(
     def is_important_channel(channel: discord.TextChannel) -> bool:
         return bool(important_regex.search(channel.name.lower()))
 
-    async with trio.open_nursery() as nursery:
+    async with anyio.create_task_group() as task_group:
         for channel in ctx.guild.channels:
             if isinstance(channel, discord.TextChannel) and not is_important_channel(
                 channel
@@ -1993,21 +2048,21 @@ async def _say_everywhere_trio(
                     #     everyone=False, users=[ctx.author], roles=False, replied_user=True
                     # ),
                 )
-                nursery.start_soon(task)
+                # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+                # noinspection PyAsyncCall
+                task_group.spawn(task)
 
 
 # noinspection PyShadowingNames
 @commands.command(hidden=True, name="sayeverywhere", aliases=["say_everywhere"])
 async def say_everywhere(
     ctx: Context, *, message: str, tts: bool = False, delete_after: int = 20
-):
+) -> None:
     """Says the message everywhere on this server."""
     await slash_respond_both(ctx, True)
     assert ctx.guild is not None
     assert ctx.author.id in configOwner
-    await trio_as_aio(_say_everywhere_trio)(
-        ctx, message, use_tts=tts, delete_after=delete_after
-    )
+    await _say_everywhere_anyio(ctx, message, use_tts=tts, delete_after=delete_after)
 
 
 all_commands.append(say_everywhere)
@@ -2040,7 +2095,6 @@ all_slash_commands.append(
 )
 
 
-@aio_as_trio  # This makes the code in this function, which is written in asyncio, callable from trio.
 async def setup_bot() -> None:
     global bot
     assert sniffio.current_async_library() == "asyncio"
@@ -2069,7 +2123,7 @@ async def setup_bot() -> None:
             )
 
 
-async def cycle_playing_status_trio(period: int = 5 * 60) -> None:
+async def cycle_playing_status_anyio(period: int = 5 * 60) -> None:
     """Cycles the playing status of the bot every period seconds."""
     # noinspection SpellCheckingInspection
     statuses = [
@@ -2085,71 +2139,71 @@ async def cycle_playing_status_trio(period: int = 5 * 60) -> None:
         "screeching at Mee6 bot >:o",
         "Butler bot is rude >:(",
     ]
-    await trio.sleep(15)
+    await sleep_both(15)
     assert bot is not None
-    await started_up.wait_value(True)
-    async with aclosing(trio_util.periodic(period)) as periodic:
-        async for _ in periodic:
-            if shutting_down.value:
-                continue
-            # noinspection PyBroadException
-            try:
-                await set_status_text_both(random.choice(statuses))
-            except DiscordException:
-                break
-            except RuntimeError:
-                break
-            except aiohttp.ClientConnectionError:
-                break
-
-
-async def logging_task_trio():
-    """Sends a log message to the log channel."""
-    assert sniffio.current_async_library() == "trio"
+    await started_up_event.wait()
     while True:
-        # message = await aio_as_trio(logging_queue.get)()
+        await sleep_both(period)
+        if shutting_down_event.is_set():
+            continue
+        # noinspection PyBroadException
+        try:
+            await set_status_text_anyio(random.choice(statuses))
+        except DiscordException:
+            break
+        except RuntimeError:
+            break
+        except aiohttp.ClientConnectionError:
+            break
+
+
+async def logging_task_anyio() -> None:
+    """Sends a log message to the log channel."""
+    while True:
         message = await log_recv_channel.receive()
-        if not shutting_down.value:
+        if not shutting_down_event.is_set():
             if log_channel is not None:
                 await send_message_both(log_channel, message, True)
-            await trio.sleep(3)
+            await sleep_both(3)
         else:
             break
 
 
 async def main() -> None:
-    """This is the start point, this starts the bot and everything else. (trio)
+    """This is the start point, this starts the bot and everything else. (asyncio)
 
-    This function is using trio even though it doesn't end in _trio because main is a standardized name for the
-    main entry point into the code."""
-    global global_nursery
-    # This is a trio function, so we can call trio stuff directly, but for starting asyncio functions we need a loop.
-    async with trio_asyncio.open_loop() as loop:
-        # Now we can use aio_as_trio to jump to asyncio.
-        assert loop == asyncio.get_event_loop()
-        try:
-            async with trio.open_nursery() as nursery:
-                # This is a nursery, it allows us to start Tasks that should run at the same time.
-                await setup_bot()
-                assert bot is not None
-                logger.debug("Initializing Database.")
-                await trio.to_thread.run_sync(db.connect)
-                await trio.to_thread.run_sync(db.create_tables, [Quote])
-                logger.debug("Database is initialized.")
-                start_cmd = partial(bot.start, loginID, reconnect=True)
-                global_nursery = nursery
-                nursery.start_soon(aio_as_trio(start_cmd))
-                nursery.start_soon(cycle_playing_status_trio)
-        except KeyboardInterrupt:
-            if bot is not None:
-                shutting_down.value = True
-                logger.warning("Logging out the bot.")
-                await aio_as_trio(bot.logout)
-                raise SystemExit
-        finally:
-            logger.debug("Closing the Database connection.")
-            await trio.to_thread.run_sync(db.close)
-            await aio_as_trio(logger.complete)
+    This function is using asyncio"""
+    global global_task_group, started_up_event, shutting_down_event
+    try:
+        async with anyio.create_task_group() as task_group:
+            # This is a nursery, it allows us to start Tasks that should run at the same time.
+            started_up_event = anyio.create_event()
+            shutting_down_event = anyio.create_event()
+            await setup_bot()
+            assert bot is not None
+            logger.debug("Initializing Database.")
+            await anyio.run_sync_in_worker_thread(db.connect)
+            await anyio.run_sync_in_worker_thread(db.create_tables, [Quote])
+            logger.debug("Database is initialized.")
+            start_cmd = partial(bot.start, loginID, reconnect=True)
+            global_task_group = task_group
+            # These are no longer coroutines in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+            # noinspection PyAsyncCall
+            task_group.spawn(start_cmd)
+            # noinspection PyAsyncCall
+            task_group.spawn(cycle_playing_status_anyio)
+    except KeyboardInterrupt:
+        if bot is not None:
+            # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
+            # noinspection PyAsyncCall
+            shutting_down_event.set()
+            logger.warning("Logging out the bot.")
+            await bot.logout()
+            raise SystemExit
+    finally:
+        logger.debug("Closing the Database connection.")
+        await anyio.run_sync_in_worker_thread(db.close)
+        await logger.complete()
 
 
 if __name__ == "__main__":
@@ -2181,13 +2235,13 @@ if __name__ == "__main__":
         wait=wait_fixed(60),  # Wait for 60 seconds before retrying.
         retry=(
             retry_if_exception_type(aiohttp.ClientConnectionError)
-            | retry_if_exception_type(trio.TrioInternalError)
+            # | retry_if_exception_type(trio.TrioInternalError)
         ),
         reraise=True,
     ):
         with attempt:
             try:
-                trio.run(main)
+                anyio.run(main, backend="asyncio")
             except DiscordException as e:
                 logger.exception(e)
                 raise ValueError(
