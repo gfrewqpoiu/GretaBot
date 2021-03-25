@@ -117,3 +117,7 @@ Gretabot-venv/
 *.db-wal
 
 *.DS_Store
+
+bot.dist/
+
+bot.build/
