@@ -6,7 +6,7 @@
 #
 
 -i https://pypi.org/simple
--e git+https://github.com/agronholm/anyio.git@b5c21d040b9286921fdf5e0a6c723ce4ab5aa7e3#egg=anyio
+-e git+https://github.com/agronholm/anyio.git@246ec4295f05d8fb943a23d366f036346cbfe091#egg=anyio
 aiohttp==3.7.4.post0; python_version >= '3.6'
 async-timeout==3.0.1; python_full_version >= '3.5.3'
 attrs==20.3.0
@@ -15,7 +15,7 @@ cchardet==2.1.7
 certifi==2020.12.5
 cffi==1.14.5
 chardet==4.0.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
-discord-py-slash-command==1.0.9.5
+discord-py-slash-command==1.1.0
 discord-py[voice]==1.6.0
 edgedb==0.13.0
 h11==0.12.0; python_version >= '3.6'

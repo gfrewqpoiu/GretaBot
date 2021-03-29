@@ -1,6 +1,7 @@
 import configparser
 from discord import Message
 from discord.ext import commands
+from discord.abc import GuildChannel
 from typing import Any
 
 config = configparser.ConfigParser()
@@ -42,6 +43,8 @@ def is_admin_check(message: Message) -> Any:
     """Checks, whether the command is run by an admin."""
     if is_in_owners():
         return True
+    if not isinstance(message.channel, GuildChannel):
+        return False
     return message.author.permissions_in(message.channel).administrator
 
 
@@ -54,6 +57,8 @@ def is_mod_check(message: Message) -> bool:
     """Checks whether the command is run by a mod"""
     if is_admin():
         return True
+    if not isinstance(message.channel, GuildChannel):
+        return False
     return message.author.permissions_in(message.channel).ban_members
 
 

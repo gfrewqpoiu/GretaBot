@@ -40,9 +40,6 @@ try:  # These are mandatory.
     import asyncio
     from loguru import logger
     import peewee
-
-    # import trio_asyncio
-    # import trio
     import sniffio
     from tenacity import (
         Retrying,
@@ -67,7 +64,7 @@ except ImportError:
 
 from database import db, Quote
 from loguru_intercept import InterceptHandler
-from checks import *
+from checks import getconf, configOwner, is_admin, is_in_owners, is_main_owner, is_mod
 
 
 @attr.s(auto_attribs=True)
@@ -142,21 +139,20 @@ intents.members = True  # This allows us to get all members of a guild. Also pri
 punctuation = string.punctuation  # A list of all punctuation characters
 
 bot: Optional[commands.Bot] = None
-bot_version: Final[str] = "2.0.0-dev"
+bot_version: Final[str] = "3.0.0-dev"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
 
 # Some shorthands for easier access.
 Context = Union[commands.Context, SlashContext]
 DiscordException = discord.DiscordException
-# aio_as_trio = trio_asyncio.aio_as_trio
-# trio_as_aio = trio_asyncio.trio_as_aio
 
 all_commands: List[
     commands.Command
 ] = []  # This will be a list of all commands, that the bot will later activate.
-all_events: List[
-    Callable[[Any], Coroutine[Any, Any, None]]
+all_events: List[Union[
+    Callable[[Any], Coroutine[Any, Any, None]],
+    Callable[[], Coroutine[Any, Any, None]]]
 ] = []  # This will be a list of all the events that the bot should listen to.
 
 all_slash_commands: List[SlashCommandInfo] = []
@@ -178,8 +174,8 @@ global_quotes: Dict[
     "XD": "XC",
 }
 
-shutting_down_event: anyio.abc.Event  # This is basically just a boolean False value, that can be waited for.
-started_up_event: anyio.abc.Event
+shutting_down_event: anyio.Event  # This is basically just a boolean False value, that can be waited for.
+started_up_event: anyio.Event
 global_task_group: TaskGroup  # A task group is a way to run multiple things at the same time. This will be set later.
 log_send_channel: MemoryObjectSendStream[str]
 log_recv_channel: MemoryObjectReceiveStream[str]
@@ -272,7 +268,7 @@ async def send_message_both(
     def chunks(long_string: str) -> Iterator[str]:
         """Produce `n`-character chunks from `s`."""
         for start in range(0, len(long_string), 1950):
-            yield long_string[start : start + 1950]
+            yield long_string[start: start + 1950]
 
     async def log_sent_message(
         to: discord.abc.Messageable, message_to_send: str
@@ -1162,7 +1158,7 @@ async def info(ctx: Context) -> None:
     *~Porting from js to py was done in:
     Country: Germany;
     City/Town: Munich.
-    
+
     Fun facts:
     1.)S.A.I.L name comes from Starbound game's AI character S.A.I.L;
     2.)S.A.I.L stands for Ship-based Artificial Intelligence Lattice.
@@ -1359,7 +1355,7 @@ async def hacknet_anyio(ctx: Context) -> None:
 
     The game is based heavily on hack_run. It is supposed to simulate a UNIX Terminal, where the user
     can enter commands and progress to "connect" to a server and see a secret message."""
-
+    # pylint: disable=unused-variable
     class Progress(IntEnum):
         """This represents the game progress."""
 
@@ -1397,7 +1393,7 @@ async def hacknet_anyio(ctx: Context) -> None:
         You may try some common UNIX Shell commands like cd, ls, cat, ssh, portscan etc.
         There is additionally a `tip` command which tries to give you a tip to proceed and `solution`,
         which outright tells you the next command to run.
-        
+
         You can also use the commands credits and thanks to get credits and thanks from the developer."""
 
     def get_tip(progress: Progress) -> str:
@@ -1521,7 +1517,7 @@ async def hacknet_anyio(ctx: Context) -> None:
     a secret note. 
     If you want to start the game now, enter `yes` in the next {wait_time} seconds.
     The game will be played in Private Messages, so if you want to play, the bot needs to be able to PM you.
-    
+
     Once the game has started, you can enter help into the console to get some additional info."""
     await send_message_both(ctx, introduction)
     try:
@@ -1962,7 +1958,7 @@ async def glitch(ctx: Context) -> None:
     a ME;
     b FART;
     c Caro and Helryon;
-    
+
     You have 15 seconds to respond. Respond with a, b or c""",
     )
     author = ctx.author
