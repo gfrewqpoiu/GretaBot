@@ -150,9 +150,11 @@ DiscordException = discord.DiscordException
 all_commands: List[
     commands.Command
 ] = []  # This will be a list of all commands, that the bot will later activate.
-all_events: List[Union[
-    Callable[[Any], Coroutine[Any, Any, None]],
-    Callable[[], Coroutine[Any, Any, None]]]
+all_events: List[
+    Union[
+        Callable[[Any], Coroutine[Any, Any, None]],
+        Callable[[], Coroutine[Any, Any, None]],
+    ]
 ] = []  # This will be a list of all the events that the bot should listen to.
 
 all_slash_commands: List[SlashCommandInfo] = []
@@ -268,7 +270,7 @@ async def send_message_both(
     def chunks(long_string: str) -> Iterator[str]:
         """Produce `n`-character chunks from `s`."""
         for start in range(0, len(long_string), 1950):
-            yield long_string[start: start + 1950]
+            yield long_string[start : start + 1950]
 
     async def log_sent_message(
         to: discord.abc.Messageable, message_to_send: str
