@@ -474,9 +474,9 @@ def setup_log_channel() -> None:
 async def on_ready_anyio() -> None:
     """This runs the setup of other things that depend on the bot being fully ready."""
     global log_channel, shutting_down_event, started_up_event
-    shutting_down_event = anyio.create_event()
+    shutting_down_event = anyio.Event()
     log_channel = None
-    started_up_event = anyio.create_event()
+    started_up_event = anyio.Event()
     async with anyio.create_task_group() as task_group:
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
@@ -636,7 +636,7 @@ async def on_message(message: discord.Message) -> None:
             await main_channel.send(message.content)
 
     # noinspection SpellCheckingInspection
-    elif channel.id == 529311873330577408:
+    elif channel.id == 369407544621268993:
         # noinspection SpellCheckingInspection
         if text == "how are you?":
             await channel.send("I am fine.")
@@ -693,7 +693,7 @@ async def on_disconnect() -> None:
     """This runs whenever the client disconnects from Discord."""
     global log_channel, started_up_event
     log_channel = None
-    started_up_event = anyio.create_event()
+    started_up_event = anyio.Event()
     # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
     # noinspection PyAsyncCall
     shutting_down_event.set()
@@ -2177,8 +2177,8 @@ async def main() -> None:
     try:
         async with anyio.create_task_group() as task_group:
             # This is a nursery, it allows us to start Tasks that should run at the same time.
-            started_up_event = anyio.create_event()
-            shutting_down_event = anyio.create_event()
+            started_up_event = anyio.Event()
+            shutting_down_event = anyio.Event()
             await setup_bot()
             assert bot is not None
             logger.debug("Initializing Database.")

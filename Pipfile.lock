@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "10c4a9321a6e5955d30c705ad98d6293dd05462348e611116f4eca1ac42bb8b1"
+            "sha256": "4804ff8f06117b08ac140e351ceff620fede3192aaa17eb3223480ebcb93cb76"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -62,7 +62,7 @@
         "anyio": {
             "editable": true,
             "git": "https://github.com/agronholm/anyio.git",
-            "ref": "b5c21d040b9286921fdf5e0a6c723ce4ab5aa7e3"
+            "ref": "547388217f88a99f7bf8e886460201d26a34e172"
         },
         "async-timeout": {
             "hashes": [
@@ -228,11 +228,11 @@
         },
         "discord-py-slash-command": {
             "hashes": [
-                "sha256:821ae953a0d7f40820c308c45c8c0856bfd8bbf4ce390dbea9feb31af1081972",
-                "sha256:d9ebe87656485e8230baa0ab849705e72e4fed9d65ee16ae017673ec1a5f00e8"
+                "sha256:3dae6ff3e72da132b8307214daf575b68972407ca91572cca88276f25264554c",
+                "sha256:b40a3c10ff4a83cb17b1443bd90761870d24cb71e7501f11c786ed179bef8d18"
             ],
             "index": "pypi",
-            "version": "==1.0.9.5"
+            "version": "==1.1.0"
         },
         "h11": {
             "hashes": [
@@ -725,6 +725,13 @@
                 "sha256:2d82818f5bb3e369420cb3c4060a7970edba416647068eb4c5343488a6c604a8"
             ],
             "version": "==0.4.3"
+        },
+        "nuitka": {
+            "hashes": [
+                "sha256:d7e333d10f927b00a1e924d1df03d06056e5de9b3ec400d85f864daf75f57440"
+            ],
+            "index": "pypi",
+            "version": "==0.6.13.1"
         },
         "parso": {
             "hashes": [
