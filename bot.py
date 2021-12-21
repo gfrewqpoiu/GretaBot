@@ -19,7 +19,6 @@ from typing import (
     Coroutine,
     Set,
     cast,
-    Any,
     Mapping,
 )
 from functools import partial
@@ -57,10 +56,10 @@ try:  # These are mandatory.
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
     from anyio.streams.text import TextStream
     import edgedb
-except ImportError:
+except ImportError as e:
     raise ImportError(
         "You have some dependencies missing, please install them with pipenv install --deploy"
-    )
+    ) from e
 
 from database import db, Quote
 from loguru_intercept import InterceptHandler
@@ -79,6 +78,7 @@ class SlashCommandInfo:
 
 # noinspection PyBroadException
 def _restart() -> None:
+    # pylint: disable=broad-except
     try:
         os.execl(sys.executable, sys.executable, *sys.argv)
     except Exception:
@@ -232,9 +232,7 @@ async def set_status_text_anyio(message: str) -> None:
             raise RuntimeError("Trio is no longer supported")
     except sniffio.AsyncLibraryNotFoundError:
         warnings.warn("Not in async context.", RuntimeWarning)
-        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
-        # noinspection PyAsyncCall
-        global_task_group.spawn(partial(bot.change_presence, activity=game))
+        global_task_group.start_soon(partial(bot.change_presence, activity=game))
 
 
 @logger.catch(reraise=True)
@@ -309,7 +307,7 @@ async def send_message_both(
         )
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
-        global_task_group.spawn(task)
+        global_task_group.start_soon(task)
 
 
 async def slash_respond_both(ctx: Context, eat_user_message: bool = False) -> None:
@@ -341,10 +339,10 @@ async def wait_for_event_both(
             return await bot.wait_for(event, timeout=timeout, check=check)
         else:
             raise RuntimeError("Not using asyncio!")
-    except sniffio.AsyncLibraryNotFoundError:
-        raise RuntimeError("Not in async Context.")
-    except asyncio.TimeoutError:
-        raise TimeoutError("The event didn't happen.")
+    except sniffio.AsyncLibraryNotFoundError as se:
+        raise RuntimeError("Not in async Context.") from se
+    except asyncio.TimeoutError as at:
+        raise TimeoutError("The event didn't happen.") from at
 
 
 def log_startup() -> None:
@@ -381,7 +379,7 @@ async def _add_global_quote_anyio(
     :param author: Optional,
     """
     keyword = keyword.lower()
-    quote = await anyio.run_sync_in_worker_thread(
+    quote = await anyio.to_thread.run_sync(
         Quote.get_or_none, -1 == Quote.guildId, keyword == Quote.keyword
     )
     if quote is None:
@@ -391,7 +389,7 @@ async def _add_global_quote_anyio(
         quote = Quote(guildId=-1, keyword=keyword, result=text, authorId=-1)
         if author is not None:
             quote.authorId = author.id
-        await anyio.run_sync_in_worker_thread(quote.save)
+        await anyio.to_thread.run_sync(quote.save)
 
 
 def log_to_channel(message: str) -> None:
@@ -401,7 +399,7 @@ def log_to_channel(message: str) -> None:
 
     :param message: The message that should be logged.
     """
-    global log_channel
+    global log_channel  # pylint: disable=global-statement
 
     # There are probably better ways to do this, but we are constrained by three things.
     # 1. We only get message as a parameter and cannot add any other parameters. Maybe Contextvars?
@@ -417,8 +415,8 @@ def log_to_channel(message: str) -> None:
                 try:
                     # logging_queue.put_nowait(message)
                     log_send_channel.send_nowait(message)
-                except anyio.WouldBlock:
-                    raise RuntimeError("Queue is full")
+                except anyio.WouldBlock as e:
+                    raise RuntimeError("Queue is full") from e
 
         else:
             return
@@ -461,7 +459,7 @@ def setup_channel_logger() -> Optional[int]:
 
 def setup_log_channel() -> None:
     """Starts the setup of the Discord Log Channel if one is defined in the config."""
-    global log_channel
+    global log_channel  # pylint: disable=global-statement
     if log_channel_id is not None:
         assert bot is not None
         log_channel = bot.get_channel(log_channel_id)
@@ -472,33 +470,33 @@ def setup_log_channel() -> None:
 
 async def on_ready_anyio() -> None:
     """This runs the setup of other things that depend on the bot being fully ready."""
-    global log_channel, shutting_down_event, started_up_event
+    global log_channel, shutting_down_event, started_up_event  # pylint: disable=global-statement
     shutting_down_event = anyio.Event()
     log_channel = None
     started_up_event = anyio.Event()
     async with anyio.create_task_group() as task_group:
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
-        task_group.spawn(anyio.run_sync_in_worker_thread, log_startup)
+        task_group.start_soon(anyio.to_thread.run_sync, log_startup)
     # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
     # noinspection PyAsyncCall
     started_up_event.set()
     async with anyio.create_task_group() as task_group:
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
-        task_group.spawn(set_status_text_anyio, "waiting")
+        task_group.start_soon(set_status_text_anyio, "waiting")
         for keyword, text in global_quotes.items():
             task = partial(_add_global_quote_anyio, keyword, text, None)
             # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
             # noinspection PyAsyncCall
-            task_group.spawn(task)
+            task_group.start_soon(task)
         # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
         # noinspection PyAsyncCall
-        task_group.spawn(anyio.run_sync_in_worker_thread, setup_log_channel)
+        task_group.start_soon(anyio.to_thread.run_sync, setup_log_channel)
 
     # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
     # noinspection PyAsyncCall
-    global_task_group.spawn(logging_task_anyio)
+    global_task_group.start_soon(logging_task_anyio)
     logger.debug("Done with setup in anyio.")
 
 
@@ -521,7 +519,7 @@ all_events.append(on_guild_join)
 
 async def on_guild_remove(server: discord.Guild) -> None:
     """This runs whenever the bot leaves a guild."""
-    global log_channel
+    global log_channel  # pylint: disable=global-statement
     if log_channel is not None:
         if log_channel.guild == server:
             log_channel = None
@@ -556,13 +554,13 @@ async def get_quote_anyio(guild: Optional[discord.Guild], text: str) -> Optional
     if guild:
         return cast(
             Optional[str],
-            await anyio.run_sync_in_worker_thread(_get_quote_sync, guild, text),
+            await anyio.to_thread.run_sync(_get_quote_sync, guild, text),
         )
     else:
         task = partial(
             Quote.get_or_none, -1 == Quote.guildId, text.lower() == Quote.keyword
         )
-        quote = await anyio.run_sync_in_worker_thread(task)
+        quote = await anyio.to_thread.run_sync(task)
         if quote:
             return str(quote.result)
         else:
@@ -608,7 +606,7 @@ async def on_message(message: discord.Message) -> None:
         return
 
     if bot.user.mentioned_in(message):
-        await channel.send(f"Can I help you with anything?")
+        await channel.send("Can I help you with anything?")
         try:
             tripped = await wait_for_event_both(
                 "message", timeout=15.0, check=booleanable
@@ -690,7 +688,7 @@ all_events.append(on_raw_reaction_add)
 
 async def on_disconnect() -> None:
     """This runs whenever the client disconnects from Discord."""
-    global log_channel, started_up_event
+    global log_channel, started_up_event  # pylint: disable=global-statement
     log_channel = None
     started_up_event = anyio.Event()
     # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
@@ -737,7 +735,7 @@ async def github(ctx: Context) -> None:
     await slash_respond_both(ctx, False)
     await send_message_both(
         ctx,
-        f"""Here is the github link to my code:
+        """Here is the github link to my code:
         https://github.com/gfrewqpoiu/GretaBot""",
     )
     logger.info(f"{ctx.author.name} ran the github command.")
@@ -791,11 +789,11 @@ async def shutdown(ctx: Context) -> None:
     db.close()
     try:
         assert bot is not None
-        raise SystemExit
+        raise SystemExit from None
     except discord.DiscordException:
         sys.exit(1)
     except AssertionError:
-        raise SystemExit
+        raise SystemExit from None
 
 
 all_commands.append(shutdown)
@@ -853,7 +851,7 @@ async def restart(ctx: Context) -> None:
     # noinspection PyBroadException
     try:
         _restart()
-    except Exception as ex:
+    except Exception as ex:  # pylint: disable=broad-except
         logger.exception(ex)
 
 
@@ -1766,7 +1764,7 @@ async def _add_quote_anyio(ctx: Context, keyword: str, quote_text: str) -> None:
         result=quote_text,
         authorId=ctx.author.id,
     )
-    await anyio.run_sync_in_worker_thread(quote.save)
+    await anyio.to_thread.run_sync(quote.save)
     logger.success(
         f"Added quote {keyword.lower()} with text: {quote_text} for guild: {ctx.message.guild} by {ctx.author.name}"
     )
@@ -1885,7 +1883,7 @@ async def list_quotes(ctx: Context) -> None:
         await send_message_both(ctx, "You cannot run this command in a PM Channel.")
         return
     query = Quote.select(Quote.keyword).where(ctx.guild.id == Quote.guildId)
-    results = await anyio.run_sync_in_worker_thread(query.execute)
+    results = await anyio.to_thread.run_sync(query.execute)
     for quote in results:
         result = result + str(quote.keyword) + "; "
     if result != "":
@@ -2049,7 +2047,7 @@ async def _say_everywhere_anyio(
                 )
                 # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
                 # noinspection PyAsyncCall
-                task_group.spawn(task)
+                task_group.start_soon(task)
 
 
 # noinspection PyShadowingNames
@@ -2181,16 +2179,16 @@ async def main() -> None:
             await setup_bot()
             assert bot is not None
             logger.debug("Initializing Database.")
-            await anyio.run_sync_in_worker_thread(db.connect)
-            await anyio.run_sync_in_worker_thread(db.create_tables, [Quote])
+            await anyio.to_thread.run_sync(db.connect)
+            await anyio.to_thread.run_sync(db.create_tables, [Quote])
             logger.debug("Database is initialized.")
             start_cmd = partial(bot.start, loginID, reconnect=True)
             global_task_group = task_group
             # These are no longer coroutines in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
             # noinspection PyAsyncCall
-            task_group.spawn(start_cmd)
+            task_group.start_soon(start_cmd)
             # noinspection PyAsyncCall
-            task_group.spawn(cycle_playing_status_anyio)
+            task_group.start_soon(cycle_playing_status_anyio)
     except KeyboardInterrupt:
         if bot is not None:
             # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
@@ -2201,7 +2199,7 @@ async def main() -> None:
             raise SystemExit
     finally:
         logger.debug("Closing the Database connection.")
-        await anyio.run_sync_in_worker_thread(db.close)
+        await anyio.to_thread.run_sync(db.close)
         await logger.complete()
 
 

@@ -28,10 +28,10 @@ brotlipy = "*"
 # perf-timer = "*"
 # trio-asyncio = {editable = true, git = "https://github.com/python-trio/trio-asyncio.git"}
 discord-py-slash-command = "==1.*"
-attrs = "<21"
+attrs = "*"
 anyio = {editable = true, git = "https://github.com/agronholm/anyio.git"}
 uvloop = "*"
-edgedb = "==0.13.*"
+edgedb = "*"
 
 [requires]
 python_version = "3.9"
