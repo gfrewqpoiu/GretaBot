@@ -18,7 +18,7 @@ peewee = "*"
 discord-py = {extras = ["voice"], version = "*"}
 loguru = "*"
 # trio = "*"
-httpx = {extras = ["http2"], version = "*"}
+httpx = {extras = ["http2"], version = "==0.17.*"}
 sniffio = "*"
 tenacity = "*"
 cchardet = "*"
@@ -27,11 +27,11 @@ brotlipy = "*"
 # trimeter = {editable = true, git = "https://github.com/python-trio/trimeter.git"}
 # perf-timer = "*"
 # trio-asyncio = {editable = true, git = "https://github.com/python-trio/trio-asyncio.git"}
-discord-py-slash-command = "*"
-attrs = "*"
+discord-py-slash-command = "==1.*"
+attrs = "<21"
 anyio = {editable = true, git = "https://github.com/agronholm/anyio.git"}
 uvloop = "*"
-edgedb = "*"
+edgedb = "==0.13.*"
 
 [requires]
 python_version = "3.9"
