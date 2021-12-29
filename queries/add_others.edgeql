@@ -3,7 +3,6 @@ INSERT User {
     discord_id := <std::bigint>$user_id,
     name := <bounded_str>$user_name,
     tag := <bounded_str>$user_tag,
-
 }
 UNLESS CONFLICT ON .discord_id
 ELSE (
