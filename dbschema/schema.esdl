@@ -74,6 +74,7 @@ module default {
         required single link guild -> Guild {
             readonly := True;
         }
+        required property channel_guild_id := .guild.guild_id;
     }
     type Guild extending Snowflake {
         required property name -> bounded_str;
@@ -82,6 +83,8 @@ module default {
         required property guild_id := .discord_id;
         # Again crazy, we can fill channels automatically from the known channels of this guild.
         multi link channels := .<guild[IS GuildChannel];
+        # Save Log Channel
+        optional single link log_channel -> GuildChannel;
     }
     type DMChannel extending Channel {
         required single link user -> User {
