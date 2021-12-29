@@ -33,7 +33,7 @@ import re
 try:  # These are mandatory.
     import aiohttp
     import discord
-    from discord.ext import commands, Command
+    from discord.ext import commands
     from discord import utils, Guild
     from discord.abc import PrivateChannel, GuildChannel
     import asyncio
@@ -64,6 +64,8 @@ except ImportError as e:
 from database import db, Quote
 from loguru_intercept import InterceptHandler
 from checks import getconf, configOwner, is_in_owners
+
+Command = commands.Command
 
 
 @attr.s(auto_attribs=True)
