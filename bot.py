@@ -33,8 +33,8 @@ import re
 try:  # These are mandatory.
     import aiohttp
     import discord
-    from discord.ext import commands
-    from discord import utils
+    from discord.ext import commands, Command
+    from discord import utils, Guild
     from discord.abc import PrivateChannel, GuildChannel
     import asyncio
     from loguru import logger
@@ -63,14 +63,13 @@ except ImportError as e:
 
 from database import db, Quote
 from loguru_intercept import InterceptHandler
-from checks import getconf, configOwner, is_admin, is_in_owners, is_main_owner, is_mod
+from checks import getconf, configOwner, is_in_owners
 
 
 @attr.s(auto_attribs=True)
 class SlashCommandInfo:
     """Represents a slash command for later adding to the client"""
-
-    command: Coroutine[Any, Any, None]
+    command: Coroutine[Any, Any, None] | Command
     name: str
     description: Optional[str] = None
     options: List[Any] = attr.Factory(list)
@@ -305,18 +304,7 @@ async def send_message_both(
         logger.warning(
             f"Sending message {message} to {str(target)} from outside async context."
         )
-        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
-        # noinspection PyAsyncCall
         global_task_group.start_soon(task)
-
-
-async def slash_respond_both(ctx: Context, eat_user_message: bool = False) -> None:
-    if isinstance(ctx, SlashContext):
-        library = sniffio.current_async_library()
-        if library == "asyncio":
-            await ctx.respond(eat=eat_user_message)
-        else:
-            raise RuntimeError("Trio is no longer supported")
 
 
 async def wait_for_event_both(
@@ -598,7 +586,7 @@ async def on_message(message: discord.Message) -> None:
     channel: Union[
         discord.TextChannel, discord.DMChannel, discord.GroupChannel
     ] = message.channel
-    guild: Optional[discord.Guild] = message.guild
+    guild = cast(Union[Guild, Guild, None], message.guild)
 
     quote = await get_quote_anyio(guild, text)
     if quote:
@@ -704,7 +692,6 @@ all_events.append(on_disconnect)
 async def invite_bot(ctx: Context) -> None:
     """Gives a link to invite the bot."""
     assert bot is not None
-    await slash_respond_both(ctx, False)
     await send_message_both(
         ctx,
         "".join(
@@ -732,7 +719,6 @@ all_slash_commands.append(
 @commands.command(hidden=True)
 async def github(ctx: Context) -> None:
     """Gives a link to the code of this bot."""
-    await slash_respond_both(ctx, False)
     await send_message_both(
         ctx,
         """Here is the github link to my code:
@@ -755,7 +741,6 @@ all_slash_commands.append(
 @commands.command(hidden=True)
 async def version(ctx: Context) -> None:
     """Gives back the bot version"""
-    await slash_respond_both(ctx)
     await send_message_both(ctx, bot_version)
     logger.info(f"{ctx.author.name} ran the version command.")
 
@@ -796,7 +781,7 @@ async def shutdown(ctx: Context) -> None:
         raise SystemExit from None
 
 
-all_commands.append(shutdown)
+all_commands.append(shutdown)  # type: ignore
 
 
 @commands.command(hidden=True)
@@ -805,7 +790,6 @@ async def update(ctx: Context) -> None:
     """Updates the bot with the newest Version from GitHub
     Only works for the bot owners."""
     assert ctx.author.id in configOwner
-    await slash_respond_both(ctx)
     await send_message_both(ctx, "Ok, I am updating from GitHub.")
     try:
         output = await anyio.run_process(
@@ -839,7 +823,6 @@ async def restart(ctx: Context) -> None:
 
     Only works for bot owners."""
     assert ctx.author.id in configOwner
-    await slash_respond_both(ctx)
     await send_message_both(ctx, "Restarting", delete_after=3)
     await asyncio.sleep(5)
     logger.warning(f"Restarting on request of {ctx.author.name}!")
@@ -875,7 +858,6 @@ async def game_title(ctx: Context, *, message: str) -> None:
     Only works for bot owners."""
     assert bot is not None
     assert ctx.author.id in configOwner
-    await slash_respond_both(ctx, False)
     # noinspection PyArgumentList
     game = discord.Game(message)
     await bot.change_presence(activity=game)
@@ -902,7 +884,6 @@ all_slash_commands.append(
 @commands.command()
 async def ping(ctx: Context) -> None:
     """Checks the ping of the bot"""
-    await slash_respond_both(ctx)
     m = await ctx.send("Ping?")
     delay: timedelta = m.created_at - ctx.message.created_at
     try:
@@ -929,7 +910,6 @@ all_slash_commands.append(
 @commands.command(hidden=True)
 async def say(ctx: Context, *, message: str) -> None:
     """Repeats what you said."""
-    await slash_respond_both(ctx, False)
     out = [f"{ctx.author.name} ran say Command with the message: {message}"]
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
@@ -963,7 +943,6 @@ all_slash_commands.append(
 )
 async def msg_to(ctx: Context, user: discord.User, *, message: str) -> None:
     """Messages the given user via PM"""
-    await slash_respond_both(ctx, True)
     out = [f"{ctx.author.name} ran msg_to Command with the message: {message}"]
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
@@ -977,7 +956,6 @@ async def msg_to(ctx: Context, user: discord.User, *, message: str) -> None:
 @commands.command(hidden=True)
 async def say3(ctx: SlashContext, *, message: str) -> None:
     """Repeats what you said, but only to you."""
-    await slash_respond_both(ctx, True)
     out = [f"{ctx.author.name} ran say3 Command with the message: {message}"]
     if ctx.guild is not None:
         out.append(f" in the guild {ctx.guild.name}")
@@ -1013,7 +991,6 @@ async def say2(ctx: Context, *, message: str) -> None:
     if ctx.guild is not None:
         assert ctx.author.permissions_in(ctx.channel).manage_messages
     logger.debug(f"Running Say2 command with the message: {message}")
-    await slash_respond_both(ctx, True)
     try:
         await ctx.message.delete()
     except discord.Forbidden:
@@ -1082,7 +1059,6 @@ async def kick(ctx: Context, user: discord.Member) -> None:
     """Kicks the specified User"""
     assert ctx.guild is not None
     assert ctx.author.permissions_in(ctx.channel).kick_members
-    await slash_respond_both(ctx)
     if user is None:
         await send_message_both(ctx, "No user was specified.")
         return
@@ -1145,7 +1121,6 @@ all_commands.append(ban)
 async def info(ctx: Context) -> None:
     """Gives some info about the bot"""
     assert bot is not None
-    await slash_respond_both(ctx)
     message = f"""📢
     Hello, I'm {bot.user.name}, a Discord bot made for simple usage by Gr3ta a.k.a Gh0st4rt1st.
     *~Date when I was created: 2017-10-15.
@@ -1185,7 +1160,6 @@ async def purge(ctx: Context, amount: int) -> None:
     """Removes the given amount of messages from this channel."""
     assert ctx.guild is not None
     assert ctx.author.permissions_in(ctx.channel).manage_messages
-    await slash_respond_both(ctx, True)
     try:
         assert ctx.guild is not None
         await ctx.channel.purge(limit=(amount + 1))
@@ -1223,7 +1197,6 @@ all_slash_commands.append(
 @commands.command(hidden=False)
 async def tf2(ctx: Context) -> None:
     """Gives a link to a funny video from Team Fortress 2."""
-    await slash_respond_both(ctx)
     await send_message_both(ctx, "https://www.youtube.com/watch?v=r-u4rA_yZTA")
 
 
@@ -1241,7 +1214,6 @@ all_slash_commands.append(
 @commands.command(hidden=False)
 async def an(ctx: Context) -> None:
     """A command giving the link to A->N website"""
-    await slash_respond_both(ctx)
     # noinspection SpellCheckingInspection
     await send_message_both(
         ctx,
@@ -1281,7 +1253,6 @@ all_slash_commands.append(
 @commands.command()
 async def changes(ctx: Context) -> None:
     """A command to show what has been added and/or removed from bot"""
-    await slash_respond_both(ctx)
     await send_message_both(
         ctx,
         """The changes:
@@ -1313,7 +1284,6 @@ all_slash_commands.append(
 @commands.command()
 async def upcoming(ctx: Context) -> None:
     """Previews upcoming plans if there are any."""
-    await slash_respond_both(ctx)
     await send_message_both(
         ctx,
         """This is upcoming:```Markdown
@@ -1688,7 +1658,6 @@ async def repeat_message_anyio(
 @commands.command(hidden=True, name="annoyeveryone")
 async def annoy_everyone(ctx: Context, amount: int = 10, sleep_time: int = 30) -> None:
     """This is just made to annoy people."""
-    await slash_respond_both(ctx)
     if amount > 10:
         await send_message_both(ctx, "Too many repetitions. Maximum is 10.")
         return
@@ -1779,7 +1748,6 @@ async def addquote(ctx: Context, keyword: str, *, quote_text: str) -> None:
     Specify the keyword in "" if it has spaces in it.
     Like this: addquote "key message" Reacting Text"""
     assert ctx.author.permissions_in(ctx.channel).manage_messages
-    await slash_respond_both(ctx)
     if len(keyword) < 1 or len(quote_text) < 1:
         await send_message_both(ctx, "Keyword or quote text missing")
         return
@@ -1877,7 +1845,6 @@ all_commands.append(deletequote)
 @commands.command(hidden=False, aliases=["liqu"], name="listquotes")
 async def list_quotes(ctx: Context) -> None:
     """Lists all quotes on the current server."""
-    await slash_respond_both(ctx)
     result = ""
     if ctx.guild is None:
         await send_message_both(ctx, "You cannot run this command in a PM Channel.")
@@ -2017,6 +1984,7 @@ all_commands.append(help2)
 # This command should not get a / command version.
 
 
+# noinspection SpellCheckingInspection
 async def _say_everywhere_anyio(
     ctx: Context, message: str, use_tts: bool = False, delete_after: int = 20
 ) -> None:
@@ -2045,8 +2013,6 @@ async def _say_everywhere_anyio(
                     #     everyone=False, users=[ctx.author], roles=False, replied_user=True
                     # ),
                 )
-                # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
-                # noinspection PyAsyncCall
                 task_group.start_soon(task)
 
 
@@ -2056,7 +2022,6 @@ async def say_everywhere(
     ctx: Context, *, message: str, tts: bool = False, delete_after: int = 20
 ) -> None:
     """Says the message everywhere on this server."""
-    await slash_respond_both(ctx, True)
     assert ctx.guild is not None
     assert ctx.author.id in configOwner
     await _say_everywhere_anyio(ctx, message, use_tts=tts, delete_after=delete_after)
