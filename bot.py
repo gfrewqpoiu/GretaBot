@@ -624,7 +624,7 @@ async def on_message(message: discord.Message) -> None:
             await main_channel.send(message.content)
 
     # noinspection SpellCheckingInspection
-    elif channel.id == 529311873330577408:
+    elif channel.id == 369407544621268993:
         # noinspection SpellCheckingInspection
         if text == "how are you?":
             await channel.send("I am fine.")
