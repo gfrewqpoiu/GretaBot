@@ -3,3 +3,38 @@ disable = "C0330, C0326"
 
 [tool.pylint.format]
 max-line-length = "88"
+[tool.poetry]
+name = "gretabot"
+version = "3.0.0-dev"
+description = "A small Discord Bot named after my gf."
+authors = ["Your Name <you@example.com>"]
+license = "AGPL 3.0"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+peewee = "^3.14.8"
+"discord.py" = {extras = ["voice"], version = "^1.7.3"}
+loguru = "^0.5.3"
+httpx = {version = "0.17.*", extras = ["http2"]}
+sniffio = "^1.2.0"
+tenacity = "^8.0.1"
+cchardet = "^2.1.7"
+brotlipy = "^0.7.0"
+discord-py-slash-command = "1.*"
+attrs = "^21.3.0"
+anyio = "^3.4.0"
+uvloop = "^0.16.0"
+edgedb = "^0.20.0"
+
+[tool.poetry.dev-dependencies]
+ipython = "^7.30.1"
+mypy = "^0.930"
+black = {extras = ["d"], version = "^21.12b0"}
+"discord.py-stubs" = "^1.7.3"
+Nuitka = "^0.6.18"
+jupyter = "^1.0.0"
+pylint = "^2.12.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
