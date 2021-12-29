@@ -69,6 +69,7 @@ from checks import getconf, configOwner, is_in_owners
 @attr.s(auto_attribs=True)
 class SlashCommandInfo:
     """Represents a slash command for later adding to the client"""
+
     command: Coroutine[Any, Any, None] | Command
     name: str
     description: Optional[str] = None
