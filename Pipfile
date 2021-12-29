@@ -5,30 +5,27 @@ verify_ssl = true
 
 [dev-packages]
 ipython = "*"
-# trio-typing = "*"
 mypy = "*"
 black = {extras = ["d"], version = "*"}
 "discord.py-stubs" = "*"
 nuitka = "*"
+jupyter = "*"
+pylint = "*"
 
 [packages]
 peewee = "*"
 discord-py = {extras = ["voice"], version = "*"}
 loguru = "*"
-# trio = "*"
-httpx = {extras = ["http2"], version = "*"}
+httpx = {extras = ["cli","http2"], version = "==0.21.*"}
 sniffio = "*"
 tenacity = "*"
 cchardet = "*"
 brotlipy = "*"
-# trio-parallel = "*"
-# trimeter = {editable = true, git = "https://github.com/python-trio/trimeter.git"}
-# perf-timer = "*"
-# trio-asyncio = {editable = true, git = "https://github.com/python-trio/trio-asyncio.git"}
-discord-py-slash-command = "*"
+discord-py-slash-command = "==3.*"
 attrs = "*"
-anyio = {editable = true, git = "https://github.com/agronholm/anyio.git"}
+anyio = "*"
 uvloop = "*"
+edgedb = "*"
 
 [requires]
 python_version = "3.9"
