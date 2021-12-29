@@ -138,7 +138,12 @@ intents.members = True  # This allows us to get all members of a guild. Also pri
 # Without this, we only get the people that actively run commands in the bot.
 punctuation = string.punctuation  # A list of all punctuation characters
 
-bot: Optional[commands.Bot] = None
+bot = commands.Bot(
+        command_prefix=settings.get("prefix", "."),
+        description=settings.get("Bot Description", "S.A.I.L"),
+        pm_help=True,
+        intents=intents,
+    )
 bot_version: Final[str] = "3.0.0-dev"
 main_channel: Optional[discord.TextChannel] = None
 log_channel: Optional[discord.TextChannel] = None
@@ -147,17 +152,17 @@ log_channel: Optional[discord.TextChannel] = None
 Context = Union[commands.Context, SlashContext]
 DiscordException = discord.DiscordException
 
-all_commands: List[
-    commands.Command
-] = []  # This will be a list of all commands, that the bot will later activate.
-all_events: List[
-    Union[
-        Callable[[Any], Coroutine[Any, Any, None]],
-        Callable[[], Coroutine[Any, Any, None]],
-    ]
-] = []  # This will be a list of all the events that the bot should listen to.
-
-all_slash_commands: List[SlashCommandInfo] = []
+# all_commands: List[
+#     commands.Command
+# ] = []  # This will be a list of all commands, that the bot will later activate.
+# all_events: List[
+#     Union[
+#         Callable[[Any], Coroutine[Any, Any, None]],
+#         Callable[[], Coroutine[Any, Any, None]],
+#     ]
+# ] = []  # This will be a list of all the events that the bot should listen to.
+#
+# all_slash_commands: List[SlashCommandInfo] = []
 # noinspection SpellCheckingInspection
 global_quotes: Dict[
     str, str
@@ -689,7 +694,7 @@ async def on_disconnect() -> None:
 all_events.append(on_disconnect)
 
 
-@commands.command(hidden=True, name="invitebot")
+@bot.slash_command(hidden=True, name="invitebot")
 async def invite_bot(ctx: Context) -> None:
     """Gives a link to invite the bot."""
     assert bot is not None
@@ -717,7 +722,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 async def github(ctx: Context) -> None:
     """Gives a link to the code of this bot."""
     await send_message_both(
@@ -739,7 +744,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 async def version(ctx: Context) -> None:
     """Gives back the bot version"""
     await send_message_both(ctx, bot_version)
@@ -759,7 +764,7 @@ all_slash_commands.append(
 
 # Utility Commands
 @is_in_owners()
-@commands.command(hidden=True, aliases=["stop"])
+@bot.slash_command(hidden=True, aliases=["stop"])
 async def shutdown(ctx: Context) -> None:
     """Shuts the bot down.
 
@@ -785,7 +790,7 @@ async def shutdown(ctx: Context) -> None:
 all_commands.append(shutdown)  # type: ignore
 
 
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 @is_in_owners()
 async def update(ctx: Context) -> None:
     """Updates the bot with the newest Version from GitHub
@@ -817,7 +822,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=True, aliases=["reboot"])
+@bot.slash_command(hidden=True, aliases=["reboot"])
 @is_in_owners()
 async def restart(ctx: Context) -> None:
     """Restarts the bot.
@@ -851,7 +856,7 @@ all_slash_commands.append(
 
 
 # noinspection PyUnusedLocal
-@commands.command(hidden=True, aliases=["setgame", "setplaying"], name="gametitle")
+@bot.slash_command(hidden=True, aliases=["setgame", "setplaying"], name="gametitle")
 @is_in_owners()
 async def game_title(ctx: Context, *, message: str) -> None:
     """Sets the currently playing status of the bot.
@@ -882,7 +887,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command()
+@bot.slash_command()
 async def ping(ctx: Context) -> None:
     """Checks the ping of the bot"""
     m = await ctx.send("Ping?")
@@ -908,7 +913,7 @@ all_slash_commands.append(
 
 
 # noinspection DuplicatedCode
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 async def say(ctx: Context, *, message: str) -> None:
     """Repeats what you said."""
     out = [f"{ctx.author.name} ran say Command with the message: {message}"]
@@ -938,7 +943,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(
+@bot.slash_command(
     hidden=True,
     aliases=["msg_user", "msguser", "msgto", "pmuser", "pm_user", "say_to", "sayto"],
 )
@@ -954,7 +959,7 @@ async def msg_to(ctx: Context, user: discord.User, *, message: str) -> None:
 
 
 # noinspection DuplicatedCode
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 async def say3(ctx: SlashContext, *, message: str) -> None:
     """Repeats what you said, but only to you."""
     out = [f"{ctx.author.name} ran say3 Command with the message: {message}"]
@@ -985,7 +990,7 @@ all_slash_commands.append(
 
 
 # noinspection DuplicatedCode
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 @commands.has_permissions(manage_messages=True)
 async def say2(ctx: Context, *, message: str) -> None:
     """Repeats what you said and removes the command message."""
@@ -1025,7 +1030,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=True, aliases=["setchannel"])
+@bot.slash_command(hidden=True, aliases=["setchannel"])
 @is_in_owners()
 @commands.guild_only()
 async def set_channel(ctx: Context) -> None:
@@ -1053,7 +1058,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command()
+@bot.slash_command()
 @commands.has_permissions(kick_members=True)
 @commands.guild_only()
 async def kick(ctx: Context, user: discord.Member) -> None:
@@ -1095,7 +1100,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command()
+@bot.slash_command()
 @commands.has_permissions(ban_members=True)
 @commands.guild_only()
 async def ban(ctx: commands.Context, user: discord.Member) -> None:
@@ -1118,7 +1123,7 @@ async def ban(ctx: commands.Context, user: discord.Member) -> None:
 all_commands.append(ban)
 
 
-@commands.command()
+@bot.slash_command()
 async def info(ctx: Context) -> None:
     """Gives some info about the bot"""
     assert bot is not None
@@ -1154,7 +1159,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(aliases=["prune", "delmsgs", "deletemessages", "delete_messages"])
+@bot.slash_command(aliases=["prune", "delmsgs", "deletemessages", "delete_messages"])
 @commands.has_permissions(manage_messages=True)
 @commands.guild_only()
 async def purge(ctx: Context, amount: int) -> None:
@@ -1195,7 +1200,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=False)
+@bot.slash_command(hidden=False)
 async def tf2(ctx: Context) -> None:
     """Gives a link to a funny video from Team Fortress 2."""
     await send_message_both(ctx, "https://www.youtube.com/watch?v=r-u4rA_yZTA")
@@ -1212,7 +1217,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=False)
+@bot.slash_command(hidden=False)
 async def an(ctx: Context) -> None:
     """A command giving the link to A->N website"""
     # noinspection SpellCheckingInspection
@@ -1234,7 +1239,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=False, name="walkersjoin")
+@bot.slash_command(hidden=False, name="walkersjoin")
 async def walkers_join(ctx: Context) -> None:
     """Gives a link to the now defunct 24/7 Walker's Radio on YouTube."""
     await send_message_both(ctx, "https://www.youtube.com/watch?v=ruOlyWdUMSw")
@@ -1251,7 +1256,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command()
+@bot.slash_command()
 async def changes(ctx: Context) -> None:
     """A command to show what has been added and/or removed from bot"""
     await send_message_both(
@@ -1282,7 +1287,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command()
+@bot.slash_command()
 async def upcoming(ctx: Context) -> None:
     """Previews upcoming plans if there are any."""
     await send_message_both(
@@ -1304,7 +1309,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=True, aliases=["FreeNitro", "freenitro", "Free_Nitro"])
+@bot.slash_command(hidden=True, aliases=["FreeNitro", "freenitro", "Free_Nitro"])
 async def free_nitro(ctx: commands.Context) -> None:
     """Gives you a link to Free Discord Nitro."""
     await send_message_both(
@@ -1521,7 +1526,7 @@ async def hacknet_anyio(ctx: Context) -> None:
     raise NotImplementedError
 
 
-@commands.command(hidden=True, aliases=["hacknet", "hack_run", "hackrun"])
+@bot.slash_command(hidden=True, aliases=["hacknet", "hack_run", "hackrun"])
 async def hack_net(ctx: Context) -> None:
     """Use this command to start the new WIP mini-game (ps. this is first step command of Easter egg)."""
     await hacknet_anyio(ctx)
@@ -1531,7 +1536,7 @@ all_commands.append(hack_net)
 # TODO: Add slash command once hack_net is finished.
 
 
-@commands.command(hidden=False)
+@bot.slash_command(hidden=False)
 async def probe(ctx: Context) -> None:
     """Use this command to check for open ports (ps. this is first step command of Easter egg)."""
     assert bot is not None
@@ -1553,7 +1558,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 async def ssh(ctx: commands.Context) -> None:
     """This command hacks the port."""
     await send_message_both(
@@ -1567,7 +1572,7 @@ all_commands.append(ssh)
 # This command should not get a / command version.
 
 
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 async def porthack(ctx: commands.Context) -> None:
     """This command lets you inside"""
     await send_message_both(
@@ -1581,7 +1586,7 @@ all_commands.append(porthack)
 # This command should not get a / command version.
 
 
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 async def ls(ctx: commands.Context) -> None:
     """This command scans bot and lets you into files of bot"""
     await send_message_both(
@@ -1596,7 +1601,7 @@ all_commands.append(ls)
 # This command should not get a / command version.
 
 
-@commands.command(hidden=True, name="cdhome", aliases=["cd_home"])
+@bot.slash_command(hidden=True, name="cdhome", aliases=["cd_home"])
 async def cd_home(ctx: commands.Context) -> None:
     """This command scans existing folders of bot and let's you access folder"""
     await send_message_both(
@@ -1612,7 +1617,7 @@ all_commands.append(cd_home)
 
 
 # noinspection SpellCheckingInspection
-@commands.command(
+@bot.slash_command(
     hidden=True,
     name="catREADME",
     aliases=["cat_readme", "cat_README.txt", "catREADME.txt"],
@@ -1656,7 +1661,7 @@ async def repeat_message_anyio(
 
 
 # noinspection SpellCheckingInspection
-@commands.command(hidden=True, name="annoyeveryone")
+@bot.slash_command(hidden=True, name="annoyeveryone")
 async def annoy_everyone(ctx: Context, amount: int = 10, sleep_time: int = 30) -> None:
     """This is just made to annoy people."""
     if amount > 10:
@@ -1706,7 +1711,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=False)
+@bot.slash_command(hidden=False)
 async def tts(ctx: Context) -> None:
     """Says a funny tts phrase once."""
     await repeat_message_anyio(
@@ -1741,7 +1746,7 @@ async def _add_quote_anyio(ctx: Context, keyword: str, quote_text: str) -> None:
     # The reasoning for moving it to a separate thread is to not block the main loop for database access.
 
 
-@commands.command(aliases=["addq"])
+@bot.slash_command(aliases=["addq"])
 @commands.has_permissions(manage_messages=True)
 async def addquote(ctx: Context, keyword: str, *, quote_text: str) -> None:
     """Adds a quote to the database.
@@ -1792,7 +1797,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(aliases=["addgq", "addgquote"], name="addglobalquote", hidden=True)
+@bot.slash_command(aliases=["addgq", "addgquote"], name="addglobalquote", hidden=True)
 @is_in_owners()
 async def add_global_quote(
     ctx: commands.Context, keyword: str, *, quote_text: str
@@ -1819,7 +1824,7 @@ all_commands.append(add_global_quote)
 # This command should not get a / command version.
 
 
-@commands.command(hidden=False, aliases=["delq", "delquote"])
+@bot.slash_command(hidden=False, aliases=["delq", "delquote"])
 @commands.has_permissions(manage_messages=True)
 async def deletequote(ctx: Context, keyword: str) -> None:
     """Deletes the quote with the given keyword.
@@ -1843,7 +1848,7 @@ all_commands.append(deletequote)
 # This command should not get a / command version.
 
 
-@commands.command(hidden=False, aliases=["liqu"], name="listquotes")
+@bot.slash_command(hidden=False, aliases=["liqu"], name="listquotes")
 async def list_quotes(ctx: Context) -> None:
     """Lists all quotes on the current server."""
     result = ""
@@ -1871,7 +1876,7 @@ all_slash_commands.append(
 )
 
 
-@commands.command(hidden=True, aliases=["eval"])
+@bot.slash_command(hidden=True, aliases=["eval"])
 @is_in_owners()
 async def evaluate(ctx: Context, *, message: str) -> None:
     """Evaluates an arbitrary python expression.
@@ -1895,7 +1900,7 @@ all_commands.append(evaluate)
 # This command should not get a / command version.
 
 
-@commands.command(hidden=True, aliases=["leave_server, leave", "leaveguild"])
+@bot.slash_command(hidden=True, aliases=["leave_server, leave", "leaveguild"])
 @is_in_owners()
 async def leave_guild(ctx: Context, guild_id: int) -> None:
     """Leaves the server with the given ID."""
@@ -1916,7 +1921,7 @@ all_commands.append(leave_guild)
 # This command should not get a / command version.
 
 
-@commands.command(hidden=False)
+@bot.slash_command(hidden=False)
 async def glitch(ctx: Context) -> None:
     """The second Easter Egg"""
     assert bot is not None
@@ -1955,7 +1960,7 @@ all_commands.append(glitch)
 # This command should not get a / command version.
 
 
-@commands.command(hidden=True)
+@bot.slash_command(hidden=True)
 @is_in_owners()
 async def help2(ctx: Context) -> None:
     """Modified Help Command that shows all commands."""
@@ -2018,7 +2023,7 @@ async def _say_everywhere_anyio(
 
 
 # noinspection PyShadowingNames
-@commands.command(hidden=True, name="sayeverywhere", aliases=["say_everywhere"])
+@bot.slash_command(hidden=True, name="sayeverywhere", aliases=["say_everywhere"])
 async def say_everywhere(
     ctx: Context, *, message: str, tts: bool = False, delete_after: int = 20
 ) -> None:
@@ -2058,32 +2063,26 @@ all_slash_commands.append(
 )
 
 
-async def setup_bot() -> None:
-    global bot
-    assert sniffio.current_async_library() == "asyncio"
-    # noinspection PyArgumentList
-    bot = commands.Bot(
-        command_prefix=settings.get("prefix", "."),
-        description=settings.get("Bot Description", "S.A.I.L"),
-        pm_help=True,
-        intents=intents,
-    )
-
-    for event in all_events:
-        bot.add_listener(event)
-
-    for command in all_commands:
-        bot.add_command(command)
-
-    if all_slash_commands:
-        slash = SlashCommand(bot, sync_commands=True)
-        for slash_command in all_slash_commands:
-            slash.add_slash_command(
-                cmd=slash_command.command,
-                name=slash_command.name,
-                description=slash_command.description,
-                options=slash_command.options,
-            )
+# async def setup_bot() -> None:
+#     global bot
+#     assert sniffio.current_async_library() == "asyncio"
+#     # noinspection PyArgumentList
+#
+#     for event in all_events:
+#         bot.add_listener(event)
+#
+#     for command in all_commands:
+#         bot.add_command(command)
+#
+#     if all_slash_commands:
+#         slash = SlashCommand(bot, sync_commands=True)
+#         for slash_command in all_slash_commands:
+#             slash.add_slash_command(
+#                 cmd=slash_command.command,
+#                 name=slash_command.name,
+#                 description=slash_command.description,
+#                 options=slash_command.options,
+#             )
 
 
 async def cycle_playing_status_anyio(period: int = 5 * 60) -> None:
@@ -2142,7 +2141,7 @@ async def main() -> None:
             # This is a nursery, it allows us to start Tasks that should run at the same time.
             started_up_event = anyio.Event()
             shutting_down_event = anyio.Event()
-            await setup_bot()
+            # await setup_bot()
             assert bot is not None
             logger.debug("Initializing Database.")
             await anyio.to_thread.run_sync(db.connect)
