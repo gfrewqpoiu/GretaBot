@@ -848,7 +848,7 @@ test = ["pytest", "coverage", "requests", "nbval", "selenium", "pytest-cov", "re
 
 [[package]]
 name = "nuitka"
-version = "0.6.18.5"
+version = "0.6.18.6"
 description = "Python compiler with full language support and CPython compatibility"
 category = "dev"
 optional = false
@@ -1997,7 +1997,7 @@ notebook = [
     {file = "notebook-6.4.6.tar.gz", hash = "sha256:7bcdf79bd1cda534735bd9830d2cbedab4ee34d8fe1df6e7b946b3aab0902ba3"},
 ]
 nuitka = [
-    {file = "Nuitka-0.6.18.5.tar.gz", hash = "sha256:a9c7b49d0bd6ae73fe299772b0f2ae95e6d5d9a20de128932bcc5b92826f0ea7"},
+    {file = "Nuitka-0.6.18.6.tar.gz", hash = "sha256:daf49f423e713f01484503da5c2e0b76523d2481d8bd1d6db5ecbf853fb081c2"},
 ]
 packaging = [
     {file = "packaging-21.3-py3-none-any.whl", hash = "sha256:ef103e05f519cdc783ae24ea4e2e0f508a9c99b2d4969652eed6a2e1ea5bd522"},
