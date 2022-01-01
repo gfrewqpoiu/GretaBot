@@ -72,19 +72,19 @@ Command = commands.Command
 class SlashCommandInfo:
     """Represents a slash command for later adding to the client"""
 
-    command: Coroutine[Any, Any, None] | Command
+    command: Union[Coroutine[Any, Any, None], commands.Command]
     name: str
     description: Optional[str] = None
     options: List[Any] = attr.Factory(list)
 
 
-# noinspection PyBroadException
 def _restart() -> None:
-    # pylint: disable=broad-except
-    try:
-        os.execl(sys.executable, sys.executable, *sys.argv)
-    except Exception:
-        pass
+    """Restarts the current program.
+
+    Note: this function does not return. Any cleanup action (like
+    saving data) must be done before calling this function."""
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
 
 
 log = logging.getLogger("discord")
@@ -310,7 +310,7 @@ async def send_message_both(
         global_task_group.start_soon(task)
 
 
-async def wait_for_event_both(
+async def wait_for_event_anyio(
     event: str,
     check: Any,
     timeout: float = 15.0,
@@ -406,8 +406,8 @@ def log_to_channel(message: str) -> None:
                 try:
                     # logging_queue.put_nowait(message)
                     log_send_channel.send_nowait(message)
-                except anyio.WouldBlock as e:
-                    raise RuntimeError("Queue is full") from e
+                except anyio.WouldBlock as err:
+                    raise RuntimeError("Queue is full") from err
 
         else:
             return
@@ -466,27 +466,17 @@ async def on_ready_anyio() -> None:
     log_channel = None
     started_up_event = anyio.Event()
     async with anyio.create_task_group() as task_group:
-        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
-        # noinspection PyAsyncCall
         task_group.start_soon(anyio.to_thread.run_sync, log_startup)
     # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
     # noinspection PyAsyncCall
     started_up_event.set()
     async with anyio.create_task_group() as task_group:
-        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
-        # noinspection PyAsyncCall
         task_group.start_soon(set_status_text_anyio, "waiting")
         for keyword, text in global_quotes.items():
             task = partial(_add_global_quote_anyio, keyword, text, None)
-            # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
-            # noinspection PyAsyncCall
             task_group.start_soon(task)
-        # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
-        # noinspection PyAsyncCall
         task_group.start_soon(anyio.to_thread.run_sync, setup_log_channel)
 
-    # This is no longer a coroutine in anyio >3.0.0 or in git version so we can suppress PyCharms warning.
-    # noinspection PyAsyncCall
     global_task_group.start_soon(logging_task_anyio)
     logger.debug("Done with setup in anyio.")
 
@@ -599,7 +589,7 @@ async def on_message(message: discord.Message) -> None:
     if bot.user.mentioned_in(message):
         await channel.send("Can I help you with anything?")
         try:
-            tripped = await wait_for_event_both(
+            tripped = await wait_for_event_anyio(
                 "message", timeout=15.0, check=booleanable
             )
             if input_to_bool(tripped.clean_content.lower()):
@@ -1441,7 +1431,7 @@ async def hacknet_anyio(ctx: Context) -> None:
     async def command_or_cancel() -> str:
         """Tries to get a command from the user."""
         try:
-            command = await wait_for_event_both("message", is_command_check, wait_time)
+            command = await wait_for_event_anyio("message", is_command_check, wait_time)
             logger.success(
                 f"{user.name} ran hack_net command {command.clean_content.lower()}"
             )
@@ -1495,7 +1485,7 @@ async def hacknet_anyio(ctx: Context) -> None:
     await send_message_both(ctx, introduction)
     try:
         assert bot is not None
-        await wait_for_event_both(
+        await wait_for_event_anyio(
             "message",
             check=lambda msg: msg.clean_content.lower() == "yes",
             timeout=wait_time,
@@ -1942,7 +1932,7 @@ async def glitch(ctx: Context) -> None:
         )
 
     try:
-        tripped = await wait_for_event_both("message", timeout=15.0, check=check)
+        tripped = await wait_for_event_anyio("message", timeout=15.0, check=check)
         answer = tripped.clean_content.lower()
         if answer != "c":
             await send_message_both(ctx, "Wrong answer!")
