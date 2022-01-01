@@ -1,3 +1,4 @@
+using extension graphql;
 module default {
     scalar type bounded_str extending str {
         constraint min_len_value(1);
