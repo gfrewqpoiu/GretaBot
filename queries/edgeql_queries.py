@@ -3,18 +3,12 @@ import edgedb
 import discord
 from typing import Union, Optional, Final, cast
 
-instance_name: Final[str] = "SAIL"
-AsyncQuerySource = Union[
-    edgedb.AsyncIOConnection, edgedb.AsyncIOTransaction, edgedb.AsyncIOPool
-]
+# instance_name: Final[str] = "SAIL"
+client = edgedb.create_async_client()
 
 
-async def _run_query(
-    query: str, source: AsyncQuerySource, *args, **kwargs
-) -> edgedb.Set:
-    if not isinstance(source, edgedb.AsyncIOTransaction):
-        async for tx in source.retrying_transaction():
-            async with tx:
-                return await _run_query(query, tx, args, kwargs)
-    else:
-        return await source.query(query, *args, **kwargs)
+async def run_query(query: str, database_client=client, *args, **kwargs) -> edgedb.Set:
+    """Run an EdgeDB Query in a new transaction and return the result set"""
+    async for tx in database_client.transaction():
+        async with tx:  # TODO: Check whether this is correct.
+            return await tx.query(query, *args, **kwargs)
