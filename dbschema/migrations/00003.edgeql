@@ -1,7 +1,13 @@
-CREATE MIGRATION m1wq26blrkrphff5h6qgjbkncgzjqb22b44rz3eghtxcuqgnjkn2lq
-    ONTO m1rrdvcfbi25ytprgzjwfkefuptphi4qynccehsdvgr7igg2gumr2a
+CREATE MIGRATION m1c3dhxm5fxfbsb4dxlconpsnytao2x47pp2bqazppyx4s4xdh7ahq
+    ONTO m1vi6ws6v6k6xs5rfpdmvdc62rzahbx5axfqdt2m4azryebal6rqka
 {
   ALTER TYPE default::Guild {
-      CREATE REQUIRED PROPERTY guild_id := (.discord_id);
+      ALTER LINK users {
+          CREATE PROPERTY guild_nickname -> default::bounded_str;
+      };
   };
+  ALTER TYPE default::User {
+      DROP LINK guild_display_names;
+  };
+  DROP TYPE default::UserGuildDisplayName;
 };

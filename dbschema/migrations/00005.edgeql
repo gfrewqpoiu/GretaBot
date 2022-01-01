@@ -1,7 +1,16 @@
-CREATE MIGRATION m1qalnignwwao3azkexokf7tyuvbblecdwzhsbml7jst4cjv2eczlq
-    ONTO m1vhz4pyyvz7lhyox5duiiesk3nqqkshr2rnstlju26dwoa7elzo4a
+CREATE MIGRATION m13u5vpeew6wi2feoudww5ynotcwljfq7cbvb3z65meoknmd3tz46q
+    ONTO m15ukyttkewlb3qwcg2urpdjcc4amoybzpwykqiasslv7zndqycmjq
 {
-  ALTER TYPE default::Guild {
-      CREATE MULTI LINK channels := (.<guild[IS default::GuildChannel]);
-  };
+  CREATE ALIAS default::Bot := (
+      SELECT
+          default::User
+      FILTER
+          (.is_bot = true)
+  );
+  CREATE ALIAS default::Owner := (
+      SELECT
+          default::User
+      FILTER
+          (.is_owner = true)
+  );
 };

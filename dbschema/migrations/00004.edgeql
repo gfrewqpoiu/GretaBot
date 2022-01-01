@@ -1,7 +1,9 @@
-CREATE MIGRATION m1vhz4pyyvz7lhyox5duiiesk3nqqkshr2rnstlju26dwoa7elzo4a
-    ONTO m1wq26blrkrphff5h6qgjbkncgzjqb22b44rz3eghtxcuqgnjkn2lq
+CREATE MIGRATION m15ukyttkewlb3qwcg2urpdjcc4amoybzpwykqiasslv7zndqycmjq
+    ONTO m1c3dhxm5fxfbsb4dxlconpsnytao2x47pp2bqazppyx4s4xdh7ahq
 {
   ALTER TYPE default::Guild {
-      DROP LINK channels;
+      ALTER LINK users {
+          RENAME TO members;
+      };
   };
 };
