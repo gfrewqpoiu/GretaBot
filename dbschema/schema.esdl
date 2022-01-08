@@ -4,6 +4,9 @@ module default {
         constraint min_len_value(1);
         constraint max_len_value(300);
     }
+    scalar type discord_tag extending str {
+        constraint regexp (r'^#[0-9]{4}$');
+    }
     abstract type Quote {
         required property keyword -> bounded_str;
         required property quote_text -> str {
@@ -32,6 +35,7 @@ module default {
     type GuildQuote extending Quote{
         required single link guild -> Guild {
             readonly := True;
+            on target delete delete source;
         }
         index on (.guild);
         index on ((.guild, .keyword));
@@ -39,6 +43,7 @@ module default {
     type ChannelQuote extending Quote {
         required single link channel -> Channel {
             readonly := True;
+            on target delete delete source;
         }
         # Just an alias for ChannelQuote.channel.discord_id
         index on (.channel);
@@ -57,18 +62,20 @@ module default {
     }
     type User extending Snowflake {
         required property name -> bounded_str;
-        required property tag -> bounded_str;
+        required property full_tag := .name ++ .discriminator;
+        required property discriminator -> discord_tag;
         required property is_owner -> bool {
             default := False;
         }
         # Just an alias for User.discord_id
         required property user_id := .discord_id;
         # This is the really crazy stuff, links in EdgeDB are bidirectional.
-        # So this allows us to fill guilds from the Guilds.
+        # So this allows us to fill the guilds from the Guilds.
         multi link guilds := .<members[IS Guild];
         required property is_bot -> bool {
             default := False;
-        };
+        }
+        single link dm_channel := .<user[IS DMChannel];
     }
     alias Bot := (
         select User
@@ -88,6 +95,7 @@ module default {
         }
         required single link guild -> Guild {
             readonly := True;
+            on target delete delete source;
         }
     }
     type Guild extending Snowflake {
@@ -100,11 +108,15 @@ module default {
         # Again crazy, we can fill channels automatically from the known channels of this guild.
         multi link channels := .<guild[IS GuildChannel];
         # Save Log Channel
-        optional single link log_channel -> GuildChannel;
+        optional single link log_channel -> GuildChannel {
+            on target delete allow;
+        }
     }
     type DMChannel extending Channel {
         required single link user -> User {
             readonly := True;
+            on target delete delete source;
+            constraint exclusive;
         }
     }
     type GroupChannel extending Channel {
