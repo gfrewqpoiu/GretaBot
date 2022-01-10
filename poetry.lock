@@ -848,7 +848,7 @@ test = ["pytest", "coverage", "requests", "nbval", "selenium", "pytest-cov", "re
 
 [[package]]
 name = "nuitka"
-version = "0.6.18.5"
+version = "0.6.19"
 description = "Python compiler with full language support and CPython compatibility"
 category = "dev"
 optional = false
@@ -1341,7 +1341,7 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "37c3a4f56331ab98444b2dc7167582506c43ed99ed84d8b07ef88df900150b5c"
+content-hash = "3ade6b8f171c76f7e27e7af3dc32173cbaee51df76feab5eb36f703a37e0709c"
 
 [metadata.files]
 aiodns = [
@@ -1997,7 +1997,7 @@ notebook = [
     {file = "notebook-6.4.6.tar.gz", hash = "sha256:7bcdf79bd1cda534735bd9830d2cbedab4ee34d8fe1df6e7b946b3aab0902ba3"},
 ]
 nuitka = [
-    {file = "Nuitka-0.6.18.5.tar.gz", hash = "sha256:a9c7b49d0bd6ae73fe299772b0f2ae95e6d5d9a20de128932bcc5b92826f0ea7"},
+    {file = "Nuitka-0.6.19.tar.gz", hash = "sha256:91eb9fb630b5274074d0d3d32f7370b26736691ad20acc40a66efd1c52ed3a72"},
 ]
 packaging = [
     {file = "packaging-21.3-py3-none-any.whl", hash = "sha256:ef103e05f519cdc783ae24ea4e2e0f508a9c99b2d4969652eed6a2e1ea5bd522"},
