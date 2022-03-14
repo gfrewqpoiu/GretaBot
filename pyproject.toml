@@ -29,7 +29,7 @@ aiodns = ">=1.1"
 
 [tool.poetry.dev-dependencies]
 ipython = "^7.30.1"
-mypy = "^0.930"
+mypy = "^0.940"
 black = {extras = ["d"], version = "^21.12b0"}
 "discord.py-stubs" = "^1.7.3"
 Nuitka = "^0.6.19"
