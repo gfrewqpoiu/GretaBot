@@ -24,15 +24,15 @@ discord-py-slash-command = "1.*"
 attrs = "^21.3.0"
 anyio = "^3.4.0"
 uvloop = "^0.16.0"
-edgedb = "^0.20.0"
+edgedb = "^0.23.0"
 aiodns = ">=1.1"
 
 [tool.poetry.dev-dependencies]
-ipython = "^7.30.1"
-mypy = "^0.930"
+ipython = "^8.4.0"
+mypy = ">=0.971, <1.0"
 black = {extras = ["d"], version = "^21.12b0"}
 "discord.py-stubs" = "^1.7.3"
-Nuitka = "^0.6.19"
+Nuitka = ">=0.9.0, <1.0"
 jupyter = "^1.0.0"
 pylint = "^2.12.2"
 
