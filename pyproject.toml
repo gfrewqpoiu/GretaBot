@@ -14,7 +14,7 @@ license = "AGPL 3.0"
 python = "^3.9"
 peewee = "^3.14.8"
 "discord.py" = {extras = ["voice"], version = "^1.7.3"}
-loguru = "^0.5.3"
+loguru = "^0.6.0"
 httpx = {version = "==0.21.*", extras = ["cli", "http2"]}
 sniffio = "^1.2.0"
 tenacity = "^8.0.1"
