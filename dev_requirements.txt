@@ -557,9 +557,9 @@ mypy==0.971; python_version >= "3.6" \
 nbclient==0.6.6; python_full_version >= "3.7.0" and python_version >= "3.7" \
     --hash=sha256:09bae4ea2df79fa6bc50aeb8278d8b79d2036792824337fa6eee834afae17312 \
     --hash=sha256:0df76a7961d99a681b4796c74a1f2553b9f998851acc01896dce064ad19a9027
-nbconvert==6.5.0; python_version >= "3.7" \
-    --hash=sha256:c56dd0b8978a1811a5654f74c727ff16ca87dd5a43abd435a1c49b840fcd8360 \
-    --hash=sha256:223e46e27abe8596b8aed54301fadbba433b7ffea8196a68fd7b1ff509eee99d
+nbconvert==7.2.3; python_version >= "3.7" \
+    --hash=sha256:66326174c190dc4f0a6cbbff96f30c632774b441fa3c7565662bb3d41992fb0f \
+    --hash=sha256:7ae7ccc68495b565dab153459ee7e65039970913eb115070da6e2c673cf0e9f8
 nbformat==5.4.0; python_full_version >= "3.7.0" and python_version >= "3.7" \
     --hash=sha256:0d6072aaec95dddc39735c144ee8bbc6589c383fb462e4058abc855348152dad \
     --hash=sha256:44ba5ca6acb80c5d5a500f1e5b83ede8cbe364d5a495c4c8cf60aaf1ba656501
